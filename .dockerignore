@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.data
+data
+logs
+exports
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+.env

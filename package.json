@@ -1,0 +1,36 @@
+{
+  "name": "focus-ingestion-engine",
+  "version": "0.1.0",
+  "description": "本地注意力摄取与焦点归因引擎",
+  "type": "module",
+  "bin": {
+    "fie": "dist/cli/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "cli": "tsx src/cli/index.ts",
+    "deploy:dry-run": "node scripts/deploy/openclaw-deploy.mjs --dry-run",
+    "deploy:openclaw": "node scripts/deploy/openclaw-deploy.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "commander": "^13.1.0",
+    "fastify": "^5.2.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.10",
+    "eslint": "^9.22.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1",
+    "vitest": "^3.0.8"
+  }
+}

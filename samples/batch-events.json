@@ -1,0 +1,28 @@
+{
+  "events": [
+    {
+      "source": "ci",
+      "sourceEventId": "ci-run-20260702-001",
+      "occurredAt": "2026-07-02T16:00:00+08:00",
+      "type": "automation.completed",
+      "project": "Focus Ingestion Engine",
+      "summary": "CI 完成构建、测试和 lint 验证，确认通用协议改动可运行。",
+      "metadata": {
+        "labels": ["ci", "validation"],
+        "files": ["src/server/http.ts", "tests/http.test.ts"]
+      }
+    },
+    {
+      "source": "git-hook",
+      "sourceEventId": "commit-local-20260702-001",
+      "occurredAt": "2026-07-02T16:05:00+08:00",
+      "type": "git.commit.created",
+      "project": "Focus Ingestion Engine",
+      "summary": "本地 Git hook 捕获一次提交准备事件，记录协议文档和批量摄取接口更新。",
+      "metadata": {
+        "labels": ["git", "hook"],
+        "files": ["docs/protocol.md", "docs/adapters.md"]
+      }
+    }
+  ]
+}

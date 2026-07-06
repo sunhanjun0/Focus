@@ -1,0 +1,13 @@
+{
+  "source": "generic-webhook",
+  "sourceEventId": "webhook-20260702-001",
+  "occurredAt": "2026-07-02T15:30:00+08:00",
+  "type": "automation.completed",
+  "project": "Focus Ingestion Engine",
+  "summary": "自动化系统完成一次通用 webhook 验证，生成脱敏摘要并确认输出 JSONL 可被下游工具消费。",
+  "metadata": {
+    "adapter": "generic-webhook",
+    "files": ["samples/generic-webhook-event.json"],
+    "labels": ["automation", "webhook", "export"]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source": "codex",
+  "sourceEventId": "sample-codex-001",
+  "occurredAt": "2026-07-02T15:00:00+08:00",
+  "type": "conversation.finished",
+  "project": "Focus Ingestion Engine",
+  "summary": "初始化 TypeScript MVP 项目结构，实现本地事件摄取、幂等、规则归因和基础 CLI。下一步：补充更多测试并接入输出适配器。",
+  "metadata": {
+    "files": [
+      "src/ingestion/ingest-event.ts",
+      "src/server/http.ts",
+      "docs/project-constraints.md"
+    ],
+    "threadId": "sample-thread"
+  }
+}

@@ -1,0 +1,25 @@
+services:
+  fie:
+    build: .
+    image: focus-ingestion-engine:latest
+    container_name: focus-ingestion-engine
+    restart: unless-stopped
+    ports:
+      - "17879:17879"
+    environment:
+      FIE_HOST: 0.0.0.0
+      FIE_PORT: "17879"
+      FIE_DB_PATH: /data/fie.sqlite
+      FIE_LOG_PATH: /data/logs/fie.jsonl
+      FIE_PRIVACY_MODE: summary
+    volumes:
+      - fie-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:17879/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  fie-data:
