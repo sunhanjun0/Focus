@@ -62,6 +62,8 @@ Content-Type: application/json
 }
 ```
 
+当决策为归入已有 Focus 但候选分数处于双阈值中间区间时，响应会带 `"lowConfidence": true`，表示该归因进入复核队列，可由用户 confirm 或 reassign（见 `docs/product-design.md` 第 8、12 节）。
+
 重复事件响应仍为成功，但 `deduplicated` 为 `true`。
 
 ## 5. 批量摄取
@@ -81,7 +83,7 @@ Content-Type: application/json
 }
 ```
 
-限制：单次最多 100 条事件。批量摄取逐条复用单条摄取链路，因此幂等、脱敏、提取、匹配和决策规则完全一致。
+限制：单次最多 100 条事件。批量摄取逐条复用单条摄取链路，因此幂等、脱敏、提取、匹配和决策规则完全一致。单条事件处理失败不应影响其余事件，响应应逐条返回每个事件的处理结果与状态。
 
 ## 6. 错误格式
 
@@ -120,6 +122,8 @@ GET /v1/focuses?limit=50
 
 `GET /v1/runs/{runId}` 返回单次摄取详情，包括 run 状态、决策、候选、脱敏事件摘要、metadata、关联 check-in 和 Focus。该接口不返回原始 `content`。
 
+`GET /v1/focuses` 返回的 Focus 含生命周期状态 `status`（active/dormant/archived/merged），默认可折叠 dormant/archived。纠正与生命周期操作（reassign/confirm/drop/merge/archive）MVP 通过 CLI 提供，对应 HTTP 接口为规划中。
+
 ## 8. JSONL 导出协议
 
 导出命令：
@@ -128,7 +132,7 @@ GET /v1/focuses?limit=50
 npm run cli -- export jsonl --output exports/checkins.jsonl
 ```
 
-每行是一个 `fie.checkin.v1` 对象，包含 Focus、run、事件来源、notes、blocker、nextAction 和 decisionReason。导出不包含原始完整正文。
+每行是一个 `fie.checkin.v1` 对象，包含 Focus、run、事件来源、notes、blocker、nextAction 和 decisionReason。导出不包含原始完整正文。后续若加入涉及文件、置信度等字段，通过递增 `schemaVersion` 兼容演进，不破坏既有下游解析。
 
 示例：
 

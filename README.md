@@ -64,17 +64,10 @@ node scripts/adapters/git-hook-example.mjs
 
 这些脚本只演示标准事件生成和 HTTP 发送方式，不包含任何特定下游系统逻辑。
 
-## 部署
-
-```bash
-export OPENCLAW_API_TOKEN
-```
-
-
 ## 项目文档
 
 - `docs/project-constraints.md`：项目约束准则，定义铁律和模块边界。
 - `docs/development-guide.md`：开发文档，说明技术栈、接口、数据模型和测试重点。
-- `docs/product-design.md`：产品设计书，说明目标用户、MVP 范围和里程碑。
+- `docs/product-design.md`：产品设计书，说明目标用户、MVP 范围和设计基准。
 - `docs/adapters.md`：通用 Adapter 接入说明，面向 webhook、CLI、自动化和下游输出。
 - `docs/protocol.md`：通用协议，说明事件格式、批量摄取、错误码和 JSONL 导出。

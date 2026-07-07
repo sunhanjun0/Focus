@@ -28,9 +28,10 @@ export function createHttpServer(db: Db, config: AppConfig, logger: Logger) {
   });
 
   server.get('/v1/focuses', async (request) => {
-    const query = request.query as { limit?: string };
+    const query = request.query as { limit?: string; includeArchived?: string };
     const limit = parseLimit(query.limit);
-    return { focuses: listFocusRows(db, limit) };
+    const includeArchived = query.includeArchived === 'true' || query.includeArchived === '1';
+    return { focuses: listFocusRows(db, limit, { includeArchived }) };
   });
 
   server.post('/v1/events/ingest', async (request, reply) => {

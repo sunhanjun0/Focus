@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS focuses (
   name TEXT NOT NULL,
   project TEXT,
   keywords_json TEXT NOT NULL DEFAULT '[]',
-  weight INTEGER NOT NULL DEFAULT 1,
   last_activity_at TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -48,17 +47,5 @@ CREATE TABLE IF NOT EXISTS focus_checkins (
   source_event_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
   FOREIGN KEY(focus_id) REFERENCES focuses(id),
-  FOREIGN KEY(run_id) REFERENCES ingestion_runs(id)
-);
-
-CREATE TABLE IF NOT EXISTS focus_links (
-  id TEXT PRIMARY KEY,
-  event_id TEXT NOT NULL,
-  run_id TEXT NOT NULL,
-  focus_id TEXT,
-  checkin_id TEXT,
-  relation TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY(event_id) REFERENCES attention_events(id),
   FOREIGN KEY(run_id) REFERENCES ingestion_runs(id)
 );

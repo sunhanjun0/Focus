@@ -24,7 +24,7 @@
 
 ### 2.5 输出适配器不得包含业务规则
 
-`outputs` 只负责把已确定的 check-in、Focus 或 export 数据写到目标系统。不要在 UUUtil、JSON、Webhook 等输出适配器中重新实现提取、匹配或创建规则。
+`outputs` 只负责把已确定的 check-in、Focus 或 export 数据写到目标系统。不要在 JSONL、Webhook 等任一输出适配器中重新实现提取、匹配或创建规则。
 
 ## 3. 模块边界
 
@@ -35,8 +35,8 @@
 | `redaction` | 脱敏、截断、隐私模式处理 | 判断是否写入 Focus |
 | `extraction` | 提取主题、进展、阻塞、下一步 | 访问输出系统 |
 | `matching` | 计算候选 Focus 和评分 | 写入 check-in |
-| `decision` | 选择 skip/check-in/create/update | 发送外部同步请求 |
-| `outputs` | UUUtil、JSON、Webhook 输出 | 修改核心决策 |
+| `decision` | 选择 skip/check_in/create_and_check_in/update_metadata | 发送外部同步请求 |
+| `outputs` | JSONL、Webhook 等输出 | 修改核心决策 |
 | `cli` | 本地调试和运维命令 | 绕过核心服务写库 |
 
 跨模块调用应沿主流程单向前进，避免环形依赖。
@@ -139,7 +139,7 @@ Agent 修改本项目时应遵守：
 
 - 先读 `AGENTS.md`、本文和相关设计文档。
 - 不为短期方便绕过 redaction、idempotency 或 decision 记录。
-- 不把 UUUtil、Codex 或任一外部工具的特殊逻辑硬编码进核心模块。
+- 不把任一外部工具（如 Codex）的特殊逻辑硬编码进核心模块。
 - 修改协议、数据库或决策规则时，同步更新开发文档和产品设计书。
 - 默认中文沟通和中文文档，必要英文术语保持原文。
 

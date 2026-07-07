@@ -13,6 +13,9 @@ function testConfig(dbPath: string): AppConfig {
     dbPath,
     privacyMode: 'summary',
     logPath: path.join(path.dirname(dbPath), 'test.jsonl'),
+    tMatch: 50,
+    tCreate: 25,
+    dormantDays: 30,
   };
 }
 
@@ -42,5 +45,41 @@ describe('ingest event', () => {
 
     const checkinCount = db.prepare('SELECT COUNT(*) as count FROM focus_checkins').get() as { count: number };
     expect(checkinCount.count).toBe(1);
+  });
+
+  it('不同来源改动同一批文件收敛到同一 Focus（跨工具归因）', () => {
+    const dbPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'fie-')), 'fie.sqlite');
+    const db = openDatabase(dbPath);
+    const config = testConfig(dbPath);
+
+    const files = ['src/db/repository.ts', 'src/db/schema.sql'];
+    const codexEvent = {
+      source: 'codex',
+      sourceEventId: 'codex-1',
+      occurredAt: '2026-07-02T15:00:00+08:00',
+      type: 'conversation.finished',
+      project: 'Focus',
+      summary: '实现仓库层文件路径写入',
+      metadata: { files },
+    };
+    const ciEvent = {
+      source: 'ci',
+      sourceEventId: 'ci-1',
+      occurredAt: '2026-07-02T15:10:00+08:00',
+      type: 'automation.completed',
+      metadata: { files },
+    };
+
+    const first = ingestEvent(db, config, codexEvent);
+    const second = ingestEvent(db, config, ciEvent);
+
+    expect(first.decision).toBe('create_and_check_in');
+    expect(second.decision).toBe('check_in');
+    expect(second.focusId).toBe(first.focusId);
+
+    const focusCount = db.prepare('SELECT COUNT(*) as count FROM focuses').get() as { count: number };
+    expect(focusCount.count).toBe(1);
+    const checkinCount = db.prepare('SELECT COUNT(*) as count FROM focus_checkins').get() as { count: number };
+    expect(checkinCount.count).toBe(2);
   });
 });

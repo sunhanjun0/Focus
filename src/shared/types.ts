@@ -20,7 +20,7 @@ export interface StoredAttentionEvent extends AttentionEventInput {
 export interface IngestionRun {
   id: string;
   eventId: string;
-  status: 'accepted' | 'duplicate' | 'failed';
+  status: 'processing' | 'accepted' | 'duplicate' | 'failed';
   decision: DecisionType | null;
   reason: string | null;
   error: string | null;
@@ -52,6 +52,7 @@ export interface DecisionResult {
   reason: string;
   focusId: string | null;
   focusName: string | null;
+  lowConfidence: boolean;
   candidates: FocusCandidate[];
 }
 
@@ -62,4 +63,5 @@ export interface IngestResult {
   focusId: string | null;
   runId: string;
   reason: string | null;
+  lowConfidence?: boolean;
 }

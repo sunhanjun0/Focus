@@ -21,7 +21,7 @@ FIE 面向绝大部分工具，而不是绑定某一个应用。任何能发送 
 
 - `project`：项目或工作区名称。
 - `summary`：脱敏后的事件摘要。
-- `metadata.files`：相关文件路径。
+- `metadata.files`：相关文件路径。这是跨工具归因的强信号——改动同一批文件的不同来源事件会据此收敛到同一 Focus，Adapter 应尽量准确提供。
 - `metadata.labels`：来源工具提供的标签。
 - `metadata.url`：可选的外部详情链接，必须避免包含 token。
 
@@ -61,17 +61,17 @@ npm run cli -- ingest samples/generic-webhook-event.json
 
 ## 5. 隐私要求
 
-Adapter 发送事件前应尽量生成摘要，不发送完整对话或附件正文。FIE 会再次执行 redaction，但来源侧仍应避免传入密钥、Cookie、完整请求头和个人敏感信息。
+Adapter 发送事件前应尽量生成摘要，不发送完整对话或附件正文。FIE 会再次执行 redaction，但来源侧仍应避免传入密钥、Cookie、完整请求头和个人敏感信息。FIE 支持按来源配置隐私模式，高敏来源可只上传来源、时间、类型和标签（见 `docs/product-design.md` 第 13 节）。
 
 ## 6. 通用输出
 
-MVP 提供 JSONL 导出，供任意下游系统消费：
+MVP 提供 JSONL 导出（pull 模式），供任意下游系统消费：
 
 ```bash
 npm run cli -- export jsonl --output exports/checkins.jsonl
 ```
 
-导出格式为 `fie.checkin.v1`，包含 Focus、run、事件来源、notes、blocker、nextAction 和 decisionReason，不包含原始完整事件正文。
+导出格式为 `fie.checkin.v1`，包含 Focus、run、事件来源、notes、blocker、nextAction 和 decisionReason，不包含原始完整事件正文。push 模式输出（Webhook、MCP、数据库同步）及其失败重试状态机为规划中，届时与对应输出能力同时引入。
 
 ## 7. 示例脚本
 

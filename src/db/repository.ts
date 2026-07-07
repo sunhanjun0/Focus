@@ -1,6 +1,7 @@
 import type { Db } from './index.js';
 import type { AttentionEventInput, DecisionResult, ExtractionResult } from '../shared/types.js';
 import { createId, nowIso } from '../shared/id.js';
+import { mergePaths } from '../shared/paths.js';
 
 export interface InsertEventInput {
   event: AttentionEventInput;
@@ -41,7 +42,7 @@ export function insertAttentionEvent(db: Db, input: InsertEventInput): InsertEve
   return { id, duplicate: false };
 }
 
-export function createIngestionRun(db: Db, eventId: string, status: 'accepted' | 'duplicate' | 'failed'): string {
+export function createIngestionRun(db: Db, eventId: string, status: 'processing' | 'duplicate'): string {
   const id = createId('run');
   const timestamp = nowIso();
   db.prepare(`
@@ -59,12 +60,27 @@ export function updateRunDecision(db: Db, runId: string, decision: DecisionResul
   `).run(decision.decision, decision.reason, JSON.stringify(decision.candidates), nowIso(), runId);
 }
 
-export function listFocusCandidates(db: Db): Array<{ id: string; name: string; project: string | null; keywords: string[]; lastActivityAt: string }> {
-  const rows = db.prepare('SELECT id, name, project, keywords_json, last_activity_at FROM focuses ORDER BY last_activity_at DESC LIMIT 50').all() as Array<{
+export function markRunFailed(db: Db, runId: string, error: string): void {
+  db.prepare(`
+    UPDATE ingestion_runs
+    SET status = 'failed', error = ?, updated_at = ?
+    WHERE id = ?
+  `).run(error.slice(0, 500), nowIso(), runId);
+}
+
+export function listFocusCandidates(db: Db): Array<{ id: string; name: string; project: string | null; keywords: string[]; paths: string[]; lastActivityAt: string }> {
+  const rows = db.prepare(`
+    SELECT id, name, project, keywords_json, paths_json, last_activity_at
+    FROM focuses
+    WHERE status IN ('active', 'dormant')
+    ORDER BY last_activity_at DESC
+    LIMIT 50
+  `).all() as Array<{
     id: string;
     name: string;
     project: string | null;
     keywords_json: string;
+    paths_json: string;
     last_activity_at: string;
   }>;
   return rows.map((row) => ({
@@ -72,35 +88,41 @@ export function listFocusCandidates(db: Db): Array<{ id: string; name: string; p
     name: row.name,
     project: row.project,
     keywords: JSON.parse(row.keywords_json) as string[],
+    paths: JSON.parse(row.paths_json) as string[],
     lastActivityAt: row.last_activity_at,
   }));
 }
 
-export function createFocusWithCheckin(db: Db, runId: string, event: AttentionEventInput, extraction: ExtractionResult): string {
+export function createFocusWithCheckin(db: Db, runId: string, event: AttentionEventInput, extraction: ExtractionResult, paths: string[]): string {
   const timestamp = nowIso();
   const focusId = createId('focus');
   const name = extraction.topic || event.project || event.type;
   const keywords = extraction.keywords.length > 0 ? extraction.keywords : [event.type];
 
   db.prepare(`
-    INSERT INTO focuses (id, name, project, keywords_json, last_activity_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(focusId, name, event.project || null, JSON.stringify(keywords), timestamp, timestamp, timestamp);
+    INSERT INTO focuses (id, name, project, keywords_json, paths_json, last_activity_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(focusId, name, event.project || null, JSON.stringify(keywords), JSON.stringify(paths), timestamp, timestamp, timestamp);
 
-  insertCheckin(db, focusId, runId, event, extraction);
+  insertCheckin(db, focusId, runId, event, extraction, paths, false);
   return focusId;
 }
 
-export function appendCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult): void {
-  insertCheckin(db, focusId, runId, event, extraction);
-  db.prepare('UPDATE focuses SET last_activity_at = ?, updated_at = ? WHERE id = ?').run(nowIso(), nowIso(), focusId);
+export function appendCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult, paths: string[], lowConfidence: boolean): void {
+  insertCheckin(db, focusId, runId, event, extraction, paths, lowConfidence);
+  const row = db.prepare('SELECT paths_json FROM focuses WHERE id = ?').get(focusId) as { paths_json: string } | undefined;
+  const existing = row ? (JSON.parse(row.paths_json) as string[]) : [];
+  const merged = mergePaths(existing, paths);
+  const timestamp = nowIso();
+  db.prepare('UPDATE focuses SET last_activity_at = ?, updated_at = ?, paths_json = ? WHERE id = ?')
+    .run(timestamp, timestamp, JSON.stringify(merged), focusId);
 }
 
-function insertCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult): void {
+function insertCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult, paths: string[], lowConfidence: boolean): void {
   const checkinId = createId('chk');
   db.prepare(`
-    INSERT INTO focus_checkins (id, focus_id, run_id, notes, blocker, next_action, source, source_event_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO focus_checkins (id, focus_id, run_id, notes, blocker, next_action, source, source_event_id, paths_json, low_confidence, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     checkinId,
     focusId,
@@ -110,8 +132,91 @@ function insertCheckin(db: Db, focusId: string, runId: string, event: AttentionE
     extraction.nextAction,
     event.source,
     event.sourceEventId,
+    JSON.stringify(paths),
+    lowConfidence ? 1 : 0,
     nowIso(),
   );
+}
+
+export interface FocusEventInput {
+  kind: 'reassign' | 'merge' | 'archive' | 'delete_checkin' | 'confirm';
+  checkinId?: string | null;
+  fromFocusId?: string | null;
+  toFocusId?: string | null;
+  actor?: string;
+  reason?: string | null;
+}
+
+export function insertFocusEvent(db: Db, input: FocusEventInput): string {
+  const id = createId('fev');
+  db.prepare(`
+    INSERT INTO focus_events (id, kind, checkin_id, from_focus_id, to_focus_id, actor, reason, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    input.kind,
+    input.checkinId ?? null,
+    input.fromFocusId ?? null,
+    input.toFocusId ?? null,
+    input.actor ?? 'user',
+    input.reason ?? null,
+    nowIso(),
+  );
+  return id;
+}
+
+export function archiveFocus(db: Db, focusId: string, reason?: string): boolean {
+  const run = db.transaction((): boolean => {
+    const focus = db.prepare('SELECT id FROM focuses WHERE id = ?').get(focusId) as { id: string } | undefined;
+    if (!focus) return false;
+    db.prepare("UPDATE focuses SET status = 'archived', updated_at = ? WHERE id = ?").run(nowIso(), focusId);
+    insertFocusEvent(db, { kind: 'archive', fromFocusId: focusId, reason: reason ?? null });
+    return true;
+  });
+  return run();
+}
+
+export function mergeFocuses(db: Db, fromId: string, intoId: string, reason?: string): boolean {
+  const run = db.transaction((): boolean => {
+    if (fromId === intoId) return false;
+    const from = db.prepare('SELECT id, keywords_json, paths_json, last_activity_at FROM focuses WHERE id = ?').get(fromId) as
+      | { id: string; keywords_json: string; paths_json: string; last_activity_at: string }
+      | undefined;
+    const into = db.prepare('SELECT id, keywords_json, paths_json, last_activity_at FROM focuses WHERE id = ?').get(intoId) as
+      | { id: string; keywords_json: string; paths_json: string; last_activity_at: string }
+      | undefined;
+    if (!from || !into) return false;
+
+    // check-in 指针改指目标 Focus
+    db.prepare('UPDATE focus_checkins SET focus_id = ? WHERE focus_id = ?').run(intoId, fromId);
+
+    const mergedKeywords = Array.from(
+      new Set([...(JSON.parse(into.keywords_json) as string[]), ...(JSON.parse(from.keywords_json) as string[])]),
+    );
+    const mergedPaths = mergePaths(JSON.parse(into.paths_json) as string[], JSON.parse(from.paths_json) as string[]);
+    const lastActivity = from.last_activity_at > into.last_activity_at ? from.last_activity_at : into.last_activity_at;
+    const timestamp = nowIso();
+    db.prepare('UPDATE focuses SET keywords_json = ?, paths_json = ?, last_activity_at = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(mergedKeywords), JSON.stringify(mergedPaths), lastActivity, timestamp, intoId);
+
+    db.prepare("UPDATE focuses SET status = 'merged', merged_into = ?, updated_at = ? WHERE id = ?")
+      .run(intoId, timestamp, fromId);
+
+    insertFocusEvent(db, { kind: 'merge', fromFocusId: fromId, toFocusId: intoId, reason: reason ?? null });
+    return true;
+  });
+  return run();
+}
+
+export function sweepDormantFocuses(db: Db, dormantDays: number): number {
+  const cutoff = new Date(Date.now() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
+  const timestamp = nowIso();
+  const result = db.prepare(`
+    UPDATE focuses
+    SET status = 'dormant', last_decayed_at = ?, updated_at = ?
+    WHERE status = 'active' AND last_activity_at < ?
+  `).run(timestamp, timestamp, cutoff);
+  return result.changes;
 }
 
 export interface ExportableCheckinRow {
@@ -191,16 +296,19 @@ export interface FocusRow {
   name: string;
   project: string | null;
   keywords: string[];
-  weight: number;
+  status: string;
+  merged_into: string | null;
   last_activity_at: string;
   created_at: string;
   updated_at: string;
 }
 
-export function listFocusRows(db: Db, limit: number): FocusRow[] {
+export function listFocusRows(db: Db, limit: number, options: { includeArchived?: boolean } = {}): FocusRow[] {
+  const whereClause = options.includeArchived ? '' : "WHERE status IN ('active', 'dormant')";
   const rows = db.prepare(`
-    SELECT id, name, project, keywords_json, weight, last_activity_at, created_at, updated_at
+    SELECT id, name, project, keywords_json, status, merged_into, last_activity_at, created_at, updated_at
     FROM focuses
+    ${whereClause}
     ORDER BY last_activity_at DESC
     LIMIT ?
   `).all(limit) as Array<Omit<FocusRow, 'keywords'> & { keywords_json: string }>;
@@ -210,7 +318,8 @@ export function listFocusRows(db: Db, limit: number): FocusRow[] {
     name: row.name,
     project: row.project,
     keywords: JSON.parse(row.keywords_json) as string[],
-    weight: row.weight,
+    status: row.status,
+    merged_into: row.merged_into,
     last_activity_at: row.last_activity_at,
     created_at: row.created_at,
     updated_at: row.updated_at,

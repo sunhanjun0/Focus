@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文面向 FIE 的实现者，说明本地开发方式、推荐技术栈、模块边界、核心流程、接口约定、测试重点和交付标准。当前仓库尚处于方案阶段，本文作为后续初始化代码仓库和 MVP 开发的执行基准。
+本文面向 FIE 的实现者，说明本地开发方式、技术栈、模块边界、核心流程、接口约定、测试重点和交付标准。仓库已进入实现阶段（`src/` 为代码、`tests/` 为测试），本文与 `docs/product-design.md`、`docs/project-constraints.md` 共同作为 MVP 开发的执行基准。
 
 ## 2. 技术栈建议
 
@@ -31,17 +31,19 @@ focus-ingestion-engine/
 │   ├── server/
 │   ├── db/
 │   ├── ingestion/
+│   ├── redaction/
 │   ├── extraction/
 │   ├── matching/
 │   ├── decision/
 │   ├── outputs/
-│   ├── mcp/
-│   └── cli/
+│   ├── cli/
+│   ├── shared/
+│   └── mcp/        # 规划中，尚未实现
 ├── docs/
 └── tests/
 ```
 
-各目录职责应保持单一：`ingestion` 只处理事件摄取和幂等，`extraction` 只提取主题、进展、阻塞和下一步，`matching` 只计算 Focus 候选，`decision` 只决定写入动作，`outputs` 只负责外部同步。
+各目录职责应保持单一：`ingestion` 只处理事件摄取和幂等，`redaction` 只做脱敏，`extraction` 只提取主题、进展、阻塞和下一步，`matching` 只计算 Focus 候选，`decision` 只决定写入动作，`outputs` 只负责输出同步。
 
 ## 4. 本地开发命令
 
@@ -72,17 +74,19 @@ npm run typecheck
 
 ```bash
 FIE_PORT=17879
+FIE_HOST=127.0.0.1
 FIE_DB_PATH=./data/fie.sqlite
 FIE_PRIVACY_MODE=summary
-UUUTIL_MCP_URL=http://127.0.0.1:17878/mcp
 FIE_LOG_PATH=./logs/fie.jsonl
 ```
 
-`FIE_PRIVACY_MODE` 至少支持：
+`FIE_PRIVACY_MODE` 是全局默认，至少支持：
 
-- `metadata`：只保存来源、时间、类型和少量标签。
+- `metadata`：只保存来源、时间、类型和白名单标签。
 - `summary`：保存脱敏摘要，推荐默认值。
-- `local_raw`：本地保存原文，不上传外部服务。
+- `local_raw`：本地保存脱敏后正文，不上传外部服务。
+
+隐私模式支持按来源覆盖全局默认（见 `docs/product-design.md` 第 13 节），高敏来源可单独设更严模式。
 
 ## 6. 核心处理流程
 
@@ -95,18 +99,20 @@ Idempotency 检查
   ↓
 Redaction 脱敏
   ↓
+路径规范化（metadata.files）
+  ↓
 Extractor 提取信号
   ↓
-Focus Matcher 匹配候选
+Focus Matcher 匹配候选（项目名、文件路径、关键词、活跃度）
   ↓
-Decision Engine 决策
+Decision Engine 决策（双阈值：check_in / 低置信 check_in / create）
   ↓
 Focus/Check-in 写入
   ↓
 通用 JSONL、Webhook 或其他输出适配器
 ```
 
-每次处理都应生成 `ingestion_runs` 记录，保留输入摘要、脱敏结果、候选 Focus、最终决策、失败原因和重试状态。
+归因、活跃度和趋势一律基于事件的 `occurredAt`，而非摄取时间，以支持乱序与历史回填。每次处理都应生成 `ingestion_runs` 记录，保留输入摘要、脱敏结果、候选 Focus、最终决策、失败原因和重试状态。
 
 ## 7. HTTP API 约定
 
@@ -142,9 +148,12 @@ Content-Type: application/json
   "deduplicated": false,
   "decision": "check_in",
   "focusId": "focus_123",
-  "runId": "run_123"
+  "runId": "run_123",
+  "reason": "匹配已有 Focus：项目名匹配"
 }
 ```
+
+当归入已有 Focus 但候选分数处于双阈值中间区间时，响应额外带 `"lowConfidence": true`（见第 9 节与 `docs/protocol.md`）。
 
 ## 8. 数据模型要点
 
@@ -152,11 +161,13 @@ MVP 至少包含以下表：
 
 - `attention_events`：保存外部事件的来源、ID、类型、时间、摘要和元数据。
 - `ingestion_runs`：保存每次处理过程、决策、错误和重试信息。
-- `focuses`：保存稳定关注对象、标签、权重、最近活动时间。
-- `focus_checkins`：保存一次关注归因的摘要、阻塞、下一步和来源。
-- `focus_links`：保存事件、运行、Focus 和 Check-in 之间的关联。
+- `focuses`：保存稳定关注对象、标签、权重、最近活动时间，以及生命周期字段 `status`（active/dormant/archived/merged）、`merged_into`、`paths_json`。
+- `focus_checkins`：保存一次关注归因的摘要、阻塞、下一步和来源，以及 `paths_json`、`low_confidence`、`corrected`。
+- `focus_events`：保存纠正与生命周期操作审计（reassign/merge/archive/drop/confirm）。
 
-`source + sourceEventId` 必须具备唯一约束，确保 hook 重试不会重复写入 Focus。
+事件、运行、Focus 和 Check-in 之间的关联由外键维护（`ingestion_runs.event_id`、`focus_checkins.run_id` 与 `focus_checkins.focus_id`），不再单设关联表。
+
+`source + sourceEventId` 必须具备唯一约束，确保 hook 重试不会重复写入 Focus。字段与表的完整 DDL 及迁移方案见 `docs/design-review-notes.md`；所有 schema 变更必须走幂等迁移通道，不能直接 `ALTER` 于全量 schema 重放。
 
 ## 9. 决策规则
 
@@ -167,7 +178,7 @@ MVP 至少包含以下表：
 - `create_and_check_in`：没有合适 Focus，创建后写入 check-in。
 - `update_metadata`：只更新 Focus 名称、标签或描述等元数据。
 
-每个决策都应保存理由，例如关键词命中、项目路径匹配、最近活跃度或规则判定结果。
+创建采用双阈值收敛：最高候选分数 `>= T_match` 高置信 `check_in`；`T_create <= 分 < T_match` 归入最高候选但标 `low_confidence` 进复核队列；`< T_create` 才 `create_and_check_in`。`T_match` / `T_create` 为可配置项，接入文件维度后需重新校准。每个决策都应保存理由，例如关键词命中、项目路径匹配、文件路径重合、最近活跃度或规则判定结果。
 
 ## 10. 测试重点
 
@@ -178,6 +189,9 @@ MVP 至少包含以下表：
 - 脱敏规则能移除 token、邮箱、路径中的敏感片段和长原文。
 - 提取器能区分 trivial 与 substantive 事件。
 - Matcher 能基于项目名、文件路径、关键词和最近活跃度排序候选 Focus。
+- Decision Engine 双阈值分档正确（check_in / 低置信 / create）。
+- Focus 生命周期：合并后 check-in 指针与 `paths_json` 一致，归档/衰减状态转换正确。
+- 纠正闭环：reassign 后指针变更、`corrected` 标记与修正率统计正确。
 - 输出适配器失败时不会丢失 run 状态，可重试。
 
 测试文件放在 `tests/` 下，并使用 `*.test.ts` 命名。
@@ -191,10 +205,21 @@ CLI 应至少提供：
 ```bash
 fie ingest ./sample-event.json
 fie runs tail
-fie focus list
+fie focus
+fie export jsonl --output exports/checkins.jsonl
 ```
 
-这些命令用于本地验证 hook、查看决策链路和排查同步失败。
+纠正类命令（本版新增，见产品设计第 12 节）：
+
+```bash
+fie checkin reassign <checkinId> <focusId>
+fie checkin confirm <checkinId>
+fie checkin drop <checkinId>
+fie focus merge <fromId> <intoId>
+fie focus archive <focusId>
+```
+
+这些命令用于本地验证 hook、查看决策链路、纠正归因和排查同步失败。
 
 ## 12. 安全与隐私要求
 
@@ -205,8 +230,10 @@ fie focus list
 第一版完成时，应满足：
 
 - 本地服务可启动并接收 `POST /v1/events/ingest`。
-- SQLite 表结构和迁移可重复初始化。
+- SQLite 表结构和迁移可重复初始化（走幂等迁移通道）。
 - 重复事件不会重复写入 check-in。
 - 至少一条 Codex 或通用 webhook 样例可以完成端到端处理。
+- Focus 匹配含文件路径维度，双阈值收敛不产生大量碎片。
+- 纠正类 CLI（reassign/confirm/drop/merge/archive）可用，修正率可统计。
 - CLI 可以查看最近 ingestion run。
-- 核心链路测试通过，失败原因可从日志定位。
+- 核心链路测试通过，失败原因可从 run 和日志定位。

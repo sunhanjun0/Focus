@@ -2,11 +2,11 @@
 
 ## 项目结构与模块组织
 
-本仓库目前是 Focus Ingestion Engine 的方案与规划文档仓库。根目录下的 `focus-ingestion-engine-independent-app-proposal.md` 是产品定位、系统架构、数据模型、协议、隐私安全和 MVP 范围的主要依据。新增规划内容优先放在根目录 Markdown 文件中；当文档数量增加后，再迁移到 `docs/` 目录。
+本仓库已进入实现阶段，`src/` 下是 Focus Ingestion Engine 的 TypeScript 实现，`tests/` 是 Vitest 测试，`docs/` 是设计与约束基准。根目录 `focus-ingestion-engine-independent-app-proposal.md` 是最初方案存档，产品设计以 `docs/product-design.md` 为准。
 
-开始开发或修改方案前，先阅读 `docs/project-constraints.md`、`docs/development-guide.md` 和 `docs/product-design.md`。其中 `docs/project-constraints.md` 是项目约束准则，优先级高于临时实现便利。
+开始开发或修改前，先阅读 `docs/project-constraints.md`、`docs/product-design.md` 和 `docs/development-guide.md`。其中 `docs/project-constraints.md` 是项目约束准则，优先级高于临时实现便利；`docs/design-review-notes.md` 与 `docs/code-review-notes.md` 记录设计方案与实现待办。
 
-如果开始实现代码，请遵循方案第 12 节建议结构：`src/` 存放 TypeScript 源码，`src/server/` 存放 HTTP 路由，`src/db/` 存放 schema 与迁移，`src/ingestion/` 存放事件摄取与脱敏逻辑，`src/extraction/` 存放规则或 LLM 提取逻辑，`src/matching/` 存放 Focus 匹配逻辑，`src/mcp/` 存放 MCP 工具，`src/cli/` 存放命令行入口，`tests/` 存放自动化测试。
+现有代码结构：`src/server/` HTTP 路由，`src/db/` schema 与仓库层，`src/ingestion/` 事件摄取与幂等，`src/redaction/` 脱敏，`src/extraction/` 规则提取，`src/matching/` Focus 匹配，`src/decision/` 决策引擎，`src/outputs/` 输出适配器，`src/cli/` 命令行入口，`src/shared/` 类型与工具。`src/mcp/`（MCP 工具）为规划中，尚未实现。
 
 ## 构建、测试与开发命令
 
@@ -32,14 +32,14 @@
 
 ## 测试规范
 
-当前没有测试套件。加入代码后，请把测试放在 `tests/` 下，并按模块或行为命名，例如 `ingestion.test.ts`、`extractor.test.ts`、`matcher.test.ts`。优先覆盖事件摄取幂等性、脱敏规则、提取决策、匹配评分，以及 MCP/HTTP 协议兼容性。
+测试位于 `tests/`，使用 Vitest 和 `*.test.ts` 命名（如 `ingestion.test.ts`、`extractor.test.ts`、`redaction.test.ts`、`http.test.ts`）。核心链路必须有覆盖：事件 schema 校验、幂等去重、redaction 脱敏、trivial/substantive 判定、Focus 候选排序（含文件路径维度）、双阈值决策与 reason 保存、纠正闭环（reassign/merge/archive）、以及输出适配器失败后的 run 状态。没有测试覆盖时不要重构核心决策逻辑；修复 bug 时优先补回归测试。
 
 ## 提交与 Pull Request 规范
 
-本仓库尚无稳定提交历史。建立约定前，请使用简短、祈使句风格的 Conventional Commit 信息，并优先使用中文描述，例如 `docs: 补充适配器隐私说明`、`feat: 初始化摄取 API`。
+提交请使用简短、祈使句风格的 Conventional Commit 信息，并优先使用中文描述，例如 `docs: 补充适配器隐私说明`、`feat: 初始化摄取 API`。
 
 Pull Request 应包含简明摘要、影响到的章节或模块、已执行的验证，以及相关 issue 或决策背景。只有涉及 UI 或渲染效果变化时，才需要附截图。
 
 ## 安全与配置提示
 
-不要提交密钥、本地数据库、原始注意力日志或 `.env` 文件。开始实现后，使用 `.env.example` 记录必要配置。隐私保护、脱敏和数据边界是本项目的核心要求，不应作为后续可选优化处理。
+不要提交密钥、本地数据库、原始注意力日志或 `.env` 文件；`.env.example` 只放占位符，不放真实 endpoint、token 或部署路径。隐私保护、脱敏和数据边界是本项目的核心要求，不应作为后续可选优化处理。隐私模式支持按来源覆盖全局默认（见 `docs/product-design.md` 第 13 节），新增 Adapter 时须说明其读取、保存和输出的数据。

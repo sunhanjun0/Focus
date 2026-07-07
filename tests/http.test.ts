@@ -14,6 +14,9 @@ function testConfig(dbPath: string): AppConfig {
     dbPath,
     privacyMode: 'summary',
     logPath: path.join(path.dirname(dbPath), 'test.jsonl'),
+    tMatch: 50,
+    tCreate: 25,
+    dormantDays: 30,
   };
 }
 

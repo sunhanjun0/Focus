@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'node:url';
+import { migrations, runMigrations } from './migrations.js';
 
 export type Db = Database.Database;
 
@@ -19,4 +20,5 @@ export function applyMigrations(db: Db): void {
   const fallbackSchemaPath = path.resolve('src/db/schema.sql');
   const schema = fs.readFileSync(fs.existsSync(schemaPath) ? schemaPath : fallbackSchemaPath, 'utf8');
   db.exec(schema);
+  runMigrations(db, migrations);
 }
