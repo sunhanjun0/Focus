@@ -13,9 +13,7 @@
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "cli": "tsx src/cli/index.ts",
-    "deploy:dry-run": "node scripts/deploy/openclaw-deploy.mjs --dry-run",
-    "deploy:openclaw": "node scripts/deploy/openclaw-deploy.mjs"
+    "cli": "tsx src/cli/index.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",

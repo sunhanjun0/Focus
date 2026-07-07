@@ -67,13 +67,9 @@ node scripts/adapters/git-hook-example.mjs
 ## 部署
 
 ```bash
-npm run deploy:dry-run
 export OPENCLAW_API_TOKEN
-npm run deploy:openclaw
-npm run deploy:openclaw -- --prompt "在树莓派上检查服务状态并返回摘要。"
 ```
 
-部署说明见 `docs/deployment.md`。OpenClaw 对端是 Agent，部署脚本发送任务提示而不是固定命令；真实 token 只放本地环境变量，不写入仓库。
 
 ## 项目文档
 
