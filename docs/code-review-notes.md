@@ -64,9 +64,10 @@
 - 现象：`text.includes(focus.name)` 子串命中即 +30；新 Focus name 常为通用词（project/type），易误命中。
 - 处理：加通用名门槛——name 长度 < 4、或等于事件 project、或等于事件 type 时不加 +30。
 
-### 11. 日志同步写盘
-- 位置：`src/shared/logger.ts:15`
+### 11. 日志同步写盘 — 已修复（2026-07-08）
+- 位置：`src/shared/logger.ts`
 - 现象：`appendFileSync` 每条同步落盘，batch 高吞吐阻塞事件循环。
+- 处理：改用 `fs.createWriteStream`（append 模式，Node 内部缓冲、按写入顺序异步落盘）；`Logger` 加可选 `close()` 冲刷缓冲，`src/index.ts` 在 SIGINT/SIGTERM 优雅关闭时先停服务器再 close 日志。测试见 `tests/logger.test.ts`。
 
 ## 配置
 
