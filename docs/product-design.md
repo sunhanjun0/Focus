@@ -182,6 +182,8 @@ Decision Engine 输出以下决策，均须持久化 `decision`、`reason`、候
 
 ## 14. 时间与顺序模型（D6）
 
+> 状态：已落地（2026-07-08）。活跃度以 `occurredAt` 计（见 code-review #5）；`listRuns` 改按 `occurred_at` 倒序（乱序/回填事件在时间线正确排位）；`fie trend` / `GET /v1/trend` 按事件 `occurredAt` 的日历日聚合每日 check-in 与 Focus 数（排除 dropped 软删）。
+
 - 事件携带 `occurredAt`（发生时间，含时区）；归因、活跃度、趋势计算一律基于 `occurredAt`，而非摄取时间。
 - 支持乱序、延迟、历史回填事件：批量导入不污染活跃度与趋势。
 - 趋势（Focus 状态随时间的变化）基于 `occurredAt` 时间序列聚合。
@@ -197,8 +199,8 @@ Decision Engine 输出以下决策，均须持久化 `decision`、`reason`、候
 | 入口 | 状态 |
 |---|---|
 | HTTP `POST /v1/events/ingest`、`/v1/events/batch` | 已实现 |
-| 只读查询 `/v1/runs`、`/v1/runs/:id`、`/v1/focuses` | 已实现 |
-| CLI（ingest、runs、focus、export、checkin reassign/confirm/drop、stats） | 已实现 |
+| 只读查询 `/v1/runs`、`/v1/runs/:id`、`/v1/focuses`、`/v1/trend` | 已实现 |
+| CLI（ingest、runs、focus、export、checkin reassign/confirm/drop、stats、trend） | 已实现 |
 | JSONL 导出 | 已实现 |
 | MCP、SDK | 规划中 |
 

@@ -15,6 +15,7 @@ import {
   confirmCheckin,
   dropCheckin,
   getCorrectionStats,
+  getActivityTrend,
 } from '../db/repository.js';
 import { ingestEvent } from '../ingestion/ingest-event.js';
 import { attentionEventSchema } from '../ingestion/schema.js';
@@ -190,6 +191,17 @@ export function createCliProgram(): Command {
       const config = loadConfig();
       const db = openDatabase(config.dbPath);
       console.log(JSON.stringify(getCorrectionStats(db), null, 2));
+    });
+
+  program
+    .command('trend')
+    .description('按事件 occurredAt 聚合的活跃度趋势（每日 check-in / Focus 数）')
+    .option('-d, --days <number>', '统计最近天数', '30')
+    .option('-f, --focus <id>', '仅统计指定 Focus')
+    .action((options: { days: string; focus?: string }) => {
+      const config = loadConfig();
+      const db = openDatabase(config.dbPath);
+      console.table(getActivityTrend(db, { days: Number(options.days), focusId: options.focus }));
     });
 
   const exportCommand = program.command('export').description('导出通用格式数据');

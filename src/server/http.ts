@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import type { Db } from '../db/index.js';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../shared/logger.js';
-import { getRunDetail, listFocusRows, listRuns } from '../db/repository.js';
+import { getActivityTrend, getRunDetail, listFocusRows, listRuns } from '../db/repository.js';
 import { ingestEvent } from '../ingestion/ingest-event.js';
 import { attentionEventSchema, batchIngestSchema } from '../ingestion/schema.js';
 
@@ -32,6 +32,12 @@ export function createHttpServer(db: Db, config: AppConfig, logger: Logger) {
     const limit = parseLimit(query.limit);
     const includeArchived = query.includeArchived === 'true' || query.includeArchived === '1';
     return { focuses: listFocusRows(db, limit, { includeArchived }) };
+  });
+
+  server.get('/v1/trend', async (request) => {
+    const query = request.query as { days?: string; focusId?: string };
+    const days = parseDays(query.days);
+    return { trend: getActivityTrend(db, { days, focusId: query.focusId }) };
   });
 
   server.post('/v1/events/ingest', async (request, reply) => {
@@ -116,4 +122,10 @@ function parseLimit(value: string | undefined): number {
   const parsed = Number(value || 50);
   if (!Number.isFinite(parsed) || parsed < 1) return 50;
   return Math.min(Math.trunc(parsed), 200);
+}
+
+function parseDays(value: string | undefined): number {
+  const parsed = Number(value || 30);
+  if (!Number.isFinite(parsed) || parsed < 1) return 30;
+  return Math.min(Math.trunc(parsed), 365);
 }

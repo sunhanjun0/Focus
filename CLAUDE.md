@@ -41,7 +41,7 @@ HTTP/CLI 入口 → redaction 脱敏 → 写入 attention_events（幂等）→ 
 
 各模块及其边界（详见 `docs/project-constraints.md` 第 3 节）：
 
-- `src/server/http.ts`：Fastify 路由与请求校验。`POST /v1/events/ingest`、`POST /v1/events/batch`、`GET /v1/runs`、`GET /v1/runs/:id`、`GET /v1/focuses`、`GET /health`。只做 HTTP 边界，不做业务决策。
+- `src/server/http.ts`：Fastify 路由与请求校验。`POST /v1/events/ingest`、`POST /v1/events/batch`、`GET /v1/runs`、`GET /v1/runs/:id`、`GET /v1/focuses`、`GET /v1/trend`、`GET /health`。只做 HTTP 边界，不做业务决策。
 - `src/ingestion/`：`schema.ts`（Zod 事件 schema）+ `ingest-event.ts`（流水线编排 + 幂等）。**只负责摄取和幂等，不做业务归因**。
 - `src/redaction/redact.ts`：脱敏层。所有进入提取/匹配/日志/导出的内容必须先经过此层。按 `privacyMode`（`metadata` / `summary` / `local_raw`）决定保留多少内容，并用正则移除 token、邮箱、Bearer、`/Users/*` 路径。
 - `src/extraction/rule-extractor.ts`：基于规则判定 trivial vs substantive，提取 topic/progress/blocker/nextAction。命中 `SUBSTANTIVE_KEYWORDS`、有文件变更、或事件类型含 `finished`/`commit` 视为实质。

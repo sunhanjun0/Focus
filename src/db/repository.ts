@@ -375,10 +375,13 @@ export interface RunRow {
   source: string;
   source_event_id: string;
   event_type: string;
+  occurred_at: string;
   created_at: string;
 }
 
 export function listRuns(db: Db, limit: number): RunRow[] {
+  // 按事件发生时间（occurred_at）排序，而非摄取时间，保证乱序/回填事件
+  // 在时间线上落在正确位置（D6 时间序模型）。
   return db.prepare(`
     SELECT
       ir.id,
@@ -388,12 +391,44 @@ export function listRuns(db: Db, limit: number): RunRow[] {
       ae.source,
       ae.source_event_id,
       ae.type AS event_type,
+      ae.occurred_at,
       ir.created_at
     FROM ingestion_runs ir
     JOIN attention_events ae ON ae.id = ir.event_id
-    ORDER BY ir.created_at DESC
+    ORDER BY ae.occurred_at DESC
     LIMIT ?
   `).all(limit) as RunRow[];
+}
+
+export interface TrendBucket {
+  date: string;
+  checkins: number;
+  focuses: number;
+}
+
+// D6：基于事件 occurredAt 的活跃度趋势。按事件所在日历日（事件自身时区的日期部分）
+// 聚合有效 check-in（排除 dropped 软删）数量与涉及的 Focus 数，反映关注随时间的变化。
+export function getActivityTrend(db: Db, options: { days?: number; focusId?: string } = {}): TrendBucket[] {
+  const days = options.days && options.days > 0 ? Math.trunc(options.days) : 30;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const params: unknown[] = [cutoff];
+  let focusFilter = '';
+  if (options.focusId) {
+    focusFilter = 'AND fc.focus_id = ?';
+    params.push(options.focusId);
+  }
+  return db.prepare(`
+    SELECT
+      substr(ae.occurred_at, 1, 10) AS date,
+      COUNT(*) AS checkins,
+      COUNT(DISTINCT fc.focus_id) AS focuses
+    FROM focus_checkins fc
+    JOIN ingestion_runs ir ON ir.id = fc.run_id
+    JOIN attention_events ae ON ae.id = ir.event_id
+    WHERE fc.dropped = 0 AND ae.occurred_at >= ? ${focusFilter}
+    GROUP BY date
+    ORDER BY date DESC
+  `).all(...params) as TrendBucket[];
 }
 
 export interface FocusRow {

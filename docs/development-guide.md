@@ -220,9 +220,10 @@ fie focus merge <fromId> <intoId>
 fie focus archive <focusId>
 fie focus sweep
 fie stats
+fie trend --days 30
 ```
 
-这些命令用于本地验证 hook、查看决策链路、纠正归因、维护 Focus 生命周期，`fie stats` 输出修正率与低置信占比等质量指标。
+这些命令用于本地验证 hook、查看决策链路、纠正归因、维护 Focus 生命周期，`fie stats` 输出修正率与低置信占比等质量指标，`fie trend` 按事件 `occurredAt` 聚合每日活跃度（check-in 与 Focus 数，D6 时间序）。
 
 ## 12. 安全与隐私要求
 

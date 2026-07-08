@@ -13,7 +13,7 @@
 | D3 | 无反馈闭环 | P0 | 定义了“用户修正率”指标却无任何纠正入口，质量无法迭代 |
 | D4 | Focus 扁平无层级 | P1 | 粒度两难，缺 focus↔focus 关系 |
 | D5 | 隐私全局单档 | P1 | 缺 per-source 粒度（open question #5，实为刚需）（✅ 已于 2026-07-08 落地） |
-| D6 | 缺时间序模型 | P1 | 按摄取序而非 occurredAt，趋势/活跃度算错（部分落地：活跃度已改用 occurredAt，见 code-review #5） |
+| D6 | 缺时间序模型 | P1 | 按摄取序而非 occurredAt，趋势/活跃度算错（✅ 已于 2026-07-08 落地：活跃度用 occurredAt、runs 按 occurred_at 排序、`fie trend`/`GET /v1/trend` 按 occurredAt 日聚合） |
 | D7 | 输出状态机悬空 | P1 | 反复强调”失败重试”，MVP 输出却是 pull-only 无失败态（✅ 已于 2026-07-08 文档对齐 pull-only；push+重试状态机随真实下游落地） |
 | D8 | 宣称 > 实现 | P2 | update_metadata、MCP/SDK 入口未落地，需标注“规划中”（✅ 已于 2026-07-08 标注） |
 
