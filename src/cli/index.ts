@@ -5,7 +5,17 @@ import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { loadConfig } from '../config.js';
 import { openDatabase } from '../db/index.js';
-import { getRunDetail, listRuns, archiveFocus, mergeFocuses, sweepDormantFocuses } from '../db/repository.js';
+import {
+  getRunDetail,
+  listRuns,
+  archiveFocus,
+  mergeFocuses,
+  sweepDormantFocuses,
+  reassignCheckin,
+  confirmCheckin,
+  dropCheckin,
+  getCorrectionStats,
+} from '../db/repository.js';
 import { ingestEvent } from '../ingestion/ingest-event.js';
 import { attentionEventSchema } from '../ingestion/schema.js';
 import { exportCheckinsToJsonl } from '../outputs/json-export.js';
@@ -117,6 +127,69 @@ export function createCliProgram(): Command {
       const db = openDatabase(config.dbPath);
       const changed = sweepDormantFocuses(db, config.dormantDays);
       console.log(JSON.stringify({ dormantDays: config.dormantDays, transitioned: changed }, null, 2));
+    });
+
+  const checkin = program.command('checkin').description('纠正 check-in 归因（D3 反馈闭环）');
+
+  checkin
+    .command('reassign')
+    .description('把 check-in 改归到正确的 Focus')
+    .argument('<checkinId>', 'check-in ID')
+    .argument('<focusId>', '目标 Focus ID')
+    .option('-r, --reason <text>', '纠正理由')
+    .action((checkinId: string, focusId: string, options: { reason?: string }) => {
+      const config = loadConfig();
+      const db = openDatabase(config.dbPath);
+      const ok = reassignCheckin(db, checkinId, focusId, options.reason);
+      if (!ok) {
+        console.error('改归失败：check-in 不存在、目标 Focus 不可用或与原归属相同');
+        process.exitCode = 1;
+        return;
+      }
+      console.log(JSON.stringify({ reassigned: checkinId, to: focusId }, null, 2));
+    });
+
+  checkin
+    .command('confirm')
+    .description('确认低置信归因正确，清除 low_confidence')
+    .argument('<checkinId>', 'check-in ID')
+    .option('-r, --reason <text>', '确认理由')
+    .action((checkinId: string, options: { reason?: string }) => {
+      const config = loadConfig();
+      const db = openDatabase(config.dbPath);
+      const ok = confirmCheckin(db, checkinId, options.reason);
+      if (!ok) {
+        console.error(`确认失败：未找到 check-in ${checkinId}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(JSON.stringify({ confirmed: checkinId }, null, 2));
+    });
+
+  checkin
+    .command('drop')
+    .description('标记误记录（软删，不物理删除）')
+    .argument('<checkinId>', 'check-in ID')
+    .option('-r, --reason <text>', '删除理由')
+    .action((checkinId: string, options: { reason?: string }) => {
+      const config = loadConfig();
+      const db = openDatabase(config.dbPath);
+      const ok = dropCheckin(db, checkinId, options.reason);
+      if (!ok) {
+        console.error(`删除失败：未找到 check-in ${checkinId}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(JSON.stringify({ dropped: checkinId }, null, 2));
+    });
+
+  program
+    .command('stats')
+    .description('输出修正率与低置信占比等质量指标')
+    .action(() => {
+      const config = loadConfig();
+      const db = openDatabase(config.dbPath);
+      console.log(JSON.stringify(getCorrectionStats(db), null, 2));
     });
 
   const exportCommand = program.command('export').description('导出通用格式数据');

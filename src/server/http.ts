@@ -65,21 +65,34 @@ export function createHttpServer(db: Db, config: AppConfig, logger: Logger) {
   server.post('/v1/events/batch', async (request, reply) => {
     try {
       const payload = batchIngestSchema.parse(request.body);
+      // 逐条隔离：任一条摄取失败不影响其余已成功项，失败计入结果（code-review #7）。
       const results = payload.events.map((event) => {
-        const result = ingestEvent(db, config, event);
-        logger.write('info', 'ingestion:api', 'event_ingested', {
-          runId: result.runId,
-          source: event.source,
-          sourceEventId: event.sourceEventId,
-          decision: result.decision,
-          deduplicated: result.deduplicated,
-          batch: true,
-        });
-        return { source: event.source, sourceEventId: event.sourceEventId, ...result };
+        try {
+          const result = ingestEvent(db, config, event);
+          logger.write('info', 'ingestion:api', 'event_ingested', {
+            runId: result.runId,
+            source: event.source,
+            sourceEventId: event.sourceEventId,
+            decision: result.decision,
+            deduplicated: result.deduplicated,
+            batch: true,
+          });
+          return { source: event.source, sourceEventId: event.sourceEventId, ...result };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.write('error', 'ingestion:api', 'event_ingest_failed', {
+            source: event.source,
+            sourceEventId: event.sourceEventId,
+            batch: true,
+            error: message,
+          });
+          return { source: event.source, sourceEventId: event.sourceEventId, status: 'failed' as const, error: '事件摄取失败' };
+        }
       });
       const accepted = results.filter((result) => result.status === 'accepted').length;
       const duplicates = results.filter((result) => result.status === 'duplicate').length;
-      return reply.code(202).send({ status: 'accepted', accepted, duplicates, results });
+      const failed = results.filter((result) => result.status === 'failed').length;
+      return reply.code(202).send({ status: 'accepted', accepted, duplicates, failed, results });
     } catch (error) {
       if (error instanceof ZodError) {
         return reply.code(400).send({

@@ -129,6 +129,8 @@ Focus 需要“记住”自己涉及过哪些文件路径。两种方案：
 
 ## 5. D3 方案：反馈闭环
 
+> 状态：已落地（2026-07-08）。迁移 `0005_checkin_corrected`（`focus_checkins` 加 `corrected`/`dropped`）；仓库层 `reassignCheckin`/`confirmCheckin`/`dropCheckin`/`getCorrectionStats`（`src/db/repository.ts`）；CLI `fie checkin reassign|confirm|drop` 与 `fie stats`（`src/cli/index.ts`）；reassign 复用 D2 逻辑维护目标 Focus 的 `paths_json`/`last_activity_at`，纠正一律写 `focus_events` 审计，原始 run/check-in 不物理删（drop 用 `dropped` 软删标记）。测试见 `tests/correction.test.ts`。
+
 ### 5.1 目标
 让用户能纠正归因，并把纠正沉淀为可度量指标与规则改进依据。
 

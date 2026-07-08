@@ -32,19 +32,20 @@
 - 影响：与 `docs/development-guide.md` 第 8 节声明不符。
 - 处理：删除 `focus_links` 表与 `focuses.weight` 列，同步清理 `repository.ts`、`cli/index.ts` 引用；关联改为依赖外键。文档（product-design §19、development-guide §8、CLAUDE.md）同步更新。
 
-### 5. 活跃度/排序用摄取时间而非 occurredAt
-- 位置：`src/db/repository.ts:96`（`nowIso()`）、`listRuns` 按 `created_at`
+### 5. 活跃度/排序用摄取时间而非 occurredAt — 已修复（2026-07-08）
+- 位置：`src/db/repository.ts`（`createFocusWithCheckin`/`appendCheckin`）、`src/matching/focus-matcher.ts`
 - 影响：历史回填 / 乱序到达事件污染 Focus 活跃度与“7 天内 +5”匹配加分。
+- 处理：`last_activity_at` 改用 `event.occurredAt`；`appendCheckin` 取 `max(existing, occurredAt)` 防乱序回退；matcher 活跃度加分的参考时间改用当前事件 `occurredAt` 而非 `Date.now()`，保证回填/乱序批次自洽。测试见 `tests/ingestion.test.ts`（“活跃度以 occurredAt 为准…”）。listRuns 仍按 `created_at`（摄取处理顺序，对 run 视图语义合理，未改）。
 
-### 6. 先查后插在多进程共享 DB 下非原子
-- 位置：`src/db/repository.ts:18-41`
+### 6. 先查后插在多进程共享 DB 下非原子 — 已修复（2026-07-08）
+- 位置：`src/db/repository.ts`（`insertAttentionEvent`）
 - 现象：SELECT-then-INSERT。单进程同步执行无碍；多副本共享同一 sqlite 时竞态，第二个 INSERT 撞 UNIQUE 抛异常 → 500。
-- 建议：`INSERT ... ON CONFLICT DO NOTHING` 或捕获约束错误当重复处理。
+- 处理：改为 `INSERT ... ON CONFLICT(source, source_event_id) DO NOTHING`；`changes===0` 时按重复处理并查回既有 id，插入本身原子，杜绝竞态 500。
 
-### 7. 批量接口无逐条隔离
-- 位置：`src/server/http.ts:64-96`
+### 7. 批量接口无逐条隔离 — 已修复（2026-07-08）
+- 位置：`src/server/http.ts`（`POST /v1/events/batch`）
 - 现象：`events.map(ingestEvent)` 中任一条抛错 → 整个 batch 500，已写库项响应丢失。
-- 建议：逐条 try/catch，把失败项计入结果。
+- 处理：逐条 try/catch，失败项计 `status='failed'` 并写日志，响应新增 `failed` 计数，成功项不受影响。测试见 `tests/http.test.ts`（批量结果含 `failed` 字段）。
 
 ## P2
 

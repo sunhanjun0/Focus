@@ -58,7 +58,7 @@ function scoreFocus(
   score += pathScore.score;
   reasons.push(...pathScore.reasons);
 
-  const activityBonus = recentActivityBonus(focus.lastActivityAt);
+  const activityBonus = recentActivityBonus(focus.lastActivityAt, event.occurredAt);
   if (activityBonus.score > 0) {
     score += activityBonus.score;
     reasons.push(activityBonus.reason);
@@ -75,10 +75,12 @@ function scoreFocus(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 分段活跃度加分：≤7 天 +5，≤30 天 +2，更久（含 dormant）0。
-function recentActivityBonus(lastActivityAt: string): { score: number; reason: string } {
+// 参考时间用当前事件的 occurredAt 而非墙上时钟，保证回填/乱序批次自洽（code-review #5）。
+function recentActivityBonus(lastActivityAt: string, referenceAt: string): { score: number; reason: string } {
   const lastActivityMs = new Date(lastActivityAt).getTime();
-  if (!Number.isFinite(lastActivityMs)) return { score: 0, reason: '' };
-  const age = Date.now() - lastActivityMs;
+  const referenceMs = new Date(referenceAt).getTime();
+  if (!Number.isFinite(lastActivityMs) || !Number.isFinite(referenceMs)) return { score: 0, reason: '' };
+  const age = referenceMs - lastActivityMs;
   if (age <= 7 * DAY_MS) return { score: 5, reason: '最近活跃（7 天内）' };
   if (age <= 30 * DAY_MS) return { score: 2, reason: '较近活跃（30 天内）' };
   return { score: 0, reason: '' };

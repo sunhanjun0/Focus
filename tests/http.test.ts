@@ -68,6 +68,8 @@ describe('http server', () => {
     expect(response.statusCode).toBe(202);
     expect(response.json().accepted).toBe(1);
     expect(response.json().duplicates).toBe(1);
+    expect(response.json().failed).toBe(0);
+    expect(response.json().results).toHaveLength(2);
   });
 
   it('提供 runs 和 focuses 查询接口', async () => {

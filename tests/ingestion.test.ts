@@ -82,4 +82,41 @@ describe('ingest event', () => {
     const checkinCount = db.prepare('SELECT COUNT(*) as count FROM focus_checkins').get() as { count: number };
     expect(checkinCount.count).toBe(2);
   });
+
+  it('活跃度以 occurredAt 为准，乱序旧事件不回退 last_activity_at', () => {
+    const dbPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'fie-')), 'fie.sqlite');
+    const db = openDatabase(dbPath);
+    const config = testConfig(dbPath);
+    const files = ['src/db/index.ts'];
+
+    // 先摄取较新的事件（occurredAt = 07-05），创建 Focus
+    const newer = ingestEvent(db, config, {
+      source: 'codex',
+      sourceEventId: 'order-newer',
+      occurredAt: '2026-07-05T10:00:00+08:00',
+      type: 'conversation.finished',
+      project: 'Focus',
+      summary: '实现活跃度基于 occurredAt',
+      metadata: { files },
+    });
+    expect(newer.decision).toBe('create_and_check_in');
+
+    // last_activity_at 应取事件发生时间（07-05），而非摄取墙钟时间（07-08）
+    const created = db.prepare('SELECT last_activity_at FROM focuses WHERE id = ?').get(newer.focusId) as { last_activity_at: string };
+    expect(created.last_activity_at.startsWith('2026-07-05')).toBe(true);
+
+    // 再摄取一条更早发生（07-01）但共享路径的事件，应归到同一 Focus
+    const older = ingestEvent(db, config, {
+      source: 'ci',
+      sourceEventId: 'order-older',
+      occurredAt: '2026-07-01T10:00:00+08:00',
+      type: 'automation.completed',
+      metadata: { files },
+    });
+    expect(older.focusId).toBe(newer.focusId);
+
+    // 乱序旧事件不得让 last_activity_at 回退，仍保持 07-05
+    const after = db.prepare('SELECT last_activity_at FROM focuses WHERE id = ?').get(newer.focusId) as { last_activity_at: string };
+    expect(after.last_activity_at.startsWith('2026-07-05')).toBe(true);
+  });
 });

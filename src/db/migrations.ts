@@ -55,6 +55,15 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    // D3：纠正闭环。corrected 标记 check-in 被 reassign/纠正过；
+    // dropped 为软删除标记（误记录不物理删，用状态字段表达）。
+    id: '0005_checkin_corrected',
+    up: (db) => {
+      addColumn(db, 'focus_checkins', 'corrected', 'INTEGER NOT NULL DEFAULT 0');
+      addColumn(db, 'focus_checkins', 'dropped', 'INTEGER NOT NULL DEFAULT 0');
+    },
+  },
 ];
 
 export function runMigrations(db: Db, list: Migration[] = migrations): void {

@@ -217,9 +217,11 @@ fie checkin confirm <checkinId>
 fie checkin drop <checkinId>
 fie focus merge <fromId> <intoId>
 fie focus archive <focusId>
+fie focus sweep
+fie stats
 ```
 
-这些命令用于本地验证 hook、查看决策链路、纠正归因和排查同步失败。
+这些命令用于本地验证 hook、查看决策链路、纠正归因、维护 Focus 生命周期，`fie stats` 输出修正率与低置信占比等质量指标。
 
 ## 12. 安全与隐私要求
 

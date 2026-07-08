@@ -16,16 +16,15 @@ export interface InsertEventResult {
 }
 
 export function insertAttentionEvent(db: Db, input: InsertEventInput): InsertEventResult {
-  const existing = db.prepare('SELECT id FROM attention_events WHERE source = ? AND source_event_id = ?')
-    .get(input.event.source, input.event.sourceEventId) as { id: string } | undefined;
-  if (existing) return { id: existing.id, duplicate: true };
-
   const id = createId('evt');
-  db.prepare(`
+  // 原子写：靠 UNIQUE(source, source_event_id) + ON CONFLICT DO NOTHING 保证幂等，
+  // 避免「先 SELECT 再 INSERT」在多进程共享 DB 下的竞态（code-review #6）。
+  const result = db.prepare(`
     INSERT INTO attention_events (
       id, source, source_event_id, occurred_at, type, project, summary, content,
       metadata_json, redacted_summary, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(source, source_event_id) DO NOTHING
   `).run(
     id,
     input.event.source,
@@ -39,6 +38,12 @@ export function insertAttentionEvent(db: Db, input: InsertEventInput): InsertEve
     input.redactedSummary,
     nowIso(),
   );
+
+  if (result.changes === 0) {
+    const existing = db.prepare('SELECT id FROM attention_events WHERE source = ? AND source_event_id = ?')
+      .get(input.event.source, input.event.sourceEventId) as { id: string };
+    return { id: existing.id, duplicate: true };
+  }
   return { id, duplicate: false };
 }
 
@@ -99,10 +104,11 @@ export function createFocusWithCheckin(db: Db, runId: string, event: AttentionEv
   const name = extraction.topic || event.project || event.type;
   const keywords = extraction.keywords.length > 0 ? extraction.keywords : [event.type];
 
+  // 活跃度以事件发生时间（occurredAt）为准，而非摄取时间，避免回填/乱序污染（code-review #5）。
   db.prepare(`
     INSERT INTO focuses (id, name, project, keywords_json, paths_json, last_activity_at, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(focusId, name, event.project || null, JSON.stringify(keywords), JSON.stringify(paths), timestamp, timestamp, timestamp);
+  `).run(focusId, name, event.project || null, JSON.stringify(keywords), JSON.stringify(paths), event.occurredAt, timestamp, timestamp);
 
   insertCheckin(db, focusId, runId, event, extraction, paths, false);
   return focusId;
@@ -110,12 +116,16 @@ export function createFocusWithCheckin(db: Db, runId: string, event: AttentionEv
 
 export function appendCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult, paths: string[], lowConfidence: boolean): void {
   insertCheckin(db, focusId, runId, event, extraction, paths, lowConfidence);
-  const row = db.prepare('SELECT paths_json FROM focuses WHERE id = ?').get(focusId) as { paths_json: string } | undefined;
+  const row = db.prepare('SELECT paths_json, last_activity_at FROM focuses WHERE id = ?').get(focusId) as
+    | { paths_json: string; last_activity_at: string }
+    | undefined;
   const existing = row ? (JSON.parse(row.paths_json) as string[]) : [];
   const merged = mergePaths(existing, paths);
   const timestamp = nowIso();
+  // 乱序到达的旧事件不得让 last_activity_at 回退，取较新者（code-review #5）。
+  const lastActivity = row && row.last_activity_at > event.occurredAt ? row.last_activity_at : event.occurredAt;
   db.prepare('UPDATE focuses SET last_activity_at = ?, updated_at = ?, paths_json = ? WHERE id = ?')
-    .run(timestamp, timestamp, JSON.stringify(merged), focusId);
+    .run(lastActivity, timestamp, JSON.stringify(merged), focusId);
 }
 
 function insertCheckin(db: Db, focusId: string, runId: string, event: AttentionEventInput, extraction: ExtractionResult, paths: string[], lowConfidence: boolean): void {
@@ -217,6 +227,101 @@ export function sweepDormantFocuses(db: Db, dormantDays: number): number {
     WHERE status = 'active' AND last_activity_at < ?
   `).run(timestamp, timestamp, cutoff);
   return result.changes;
+}
+
+type CheckinPointerRow = { focus_id: string; paths_json: string; dropped: number };
+
+// D3：把 check-in 改归到正确的 Focus。指针改指、置 corrected=1，写 reassign 审计，
+// 并复用 D2 逻辑维护目标 Focus 的 paths_json / last_activity_at。
+export function reassignCheckin(db: Db, checkinId: string, toFocusId: string, reason?: string): boolean {
+  const run = db.transaction((): boolean => {
+    const checkin = db.prepare('SELECT focus_id, paths_json, dropped FROM focus_checkins WHERE id = ?').get(checkinId) as
+      | CheckinPointerRow
+      | undefined;
+    if (!checkin) return false;
+    const target = db.prepare("SELECT id FROM focuses WHERE id = ? AND status IN ('active', 'dormant')").get(toFocusId) as
+      | { id: string }
+      | undefined;
+    if (!target) return false;
+    if (checkin.focus_id === toFocusId) return false;
+
+    const fromFocusId = checkin.focus_id;
+    db.prepare('UPDATE focus_checkins SET focus_id = ?, corrected = 1 WHERE id = ?').run(toFocusId, checkinId);
+
+    const focusRow = db.prepare('SELECT paths_json FROM focuses WHERE id = ?').get(toFocusId) as { paths_json: string };
+    const merged = mergePaths(JSON.parse(focusRow.paths_json) as string[], JSON.parse(checkin.paths_json) as string[]);
+    const timestamp = nowIso();
+    db.prepare('UPDATE focuses SET paths_json = ?, last_activity_at = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(merged), timestamp, timestamp, toFocusId);
+
+    insertFocusEvent(db, { kind: 'reassign', checkinId, fromFocusId, toFocusId, reason: reason ?? null });
+    return true;
+  });
+  return run();
+}
+
+// D3：确认低置信归因正确，清 low_confidence，写 confirm 审计。
+export function confirmCheckin(db: Db, checkinId: string, reason?: string): boolean {
+  const run = db.transaction((): boolean => {
+    const checkin = db.prepare('SELECT focus_id FROM focus_checkins WHERE id = ?').get(checkinId) as
+      | { focus_id: string }
+      | undefined;
+    if (!checkin) return false;
+    db.prepare('UPDATE focus_checkins SET low_confidence = 0 WHERE id = ?').run(checkinId);
+    insertFocusEvent(db, { kind: 'confirm', checkinId, fromFocusId: checkin.focus_id, reason: reason ?? null });
+    return true;
+  });
+  return run();
+}
+
+// D3：软删除误记录。不物理删，用 dropped 标记表达；写 delete_checkin 审计。
+export function dropCheckin(db: Db, checkinId: string, reason?: string): boolean {
+  const run = db.transaction((): boolean => {
+    const checkin = db.prepare('SELECT focus_id FROM focus_checkins WHERE id = ?').get(checkinId) as
+      | { focus_id: string }
+      | undefined;
+    if (!checkin) return false;
+    db.prepare('UPDATE focus_checkins SET dropped = 1 WHERE id = ?').run(checkinId);
+    insertFocusEvent(db, { kind: 'delete_checkin', checkinId, fromFocusId: checkin.focus_id, reason: reason ?? null });
+    return true;
+  });
+  return run();
+}
+
+export interface CorrectionStats {
+  totalCheckins: number;
+  correctedCheckins: number;
+  droppedCheckins: number;
+  lowConfidenceCheckins: number;
+  correctionEvents: number;
+  correctionRate: number;
+  lowConfidenceRate: number;
+}
+
+// D3：修正率统计。修正事件 = focus_events 中 reassign/delete_checkin/merge 的条数。
+export function getCorrectionStats(db: Db): CorrectionStats {
+  const totals = db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      COALESCE(SUM(corrected), 0) AS corrected,
+      COALESCE(SUM(dropped), 0) AS dropped,
+      COALESCE(SUM(low_confidence), 0) AS low_confidence
+    FROM focus_checkins
+  `).get() as { total: number; corrected: number; dropped: number; low_confidence: number };
+  const events = db.prepare(`
+    SELECT COUNT(*) AS count FROM focus_events WHERE kind IN ('reassign', 'delete_checkin', 'merge')
+  `).get() as { count: number };
+
+  const total = totals.total;
+  return {
+    totalCheckins: total,
+    correctedCheckins: totals.corrected,
+    droppedCheckins: totals.dropped,
+    lowConfidenceCheckins: totals.low_confidence,
+    correctionEvents: events.count,
+    correctionRate: total > 0 ? events.count / total : 0,
+    lowConfidenceRate: total > 0 ? totals.low_confidence / total : 0,
+  };
 }
 
 export interface ExportableCheckinRow {
