@@ -85,6 +85,6 @@ D1/D2/D3 三条 P0 已全部闭合。下一步可回看 `design-review-notes.md`
 
 ## 7. 尚未处理的已知项（低优先，非阻塞）
 
-`code-review-notes.md` 中仍开放：#8（metadata 隐私未最小化）、#9（脱敏覆盖窄）、#11（日志同步写盘）。均为 P2，可按需处理。
+`code-review-notes.md` 中仍开放：#11（日志同步写盘）。为 P2，可按需处理。
 
-已于 2026-07-08 修复：#5（活跃度改用 occurredAt + 乱序不回退）、#6（原子 upsert `ON CONFLICT DO NOTHING`）、#7（批量逐条隔离，响应加 `failed` 计数）。当前测试 **42 passed**。
+已于 2026-07-08 修复：#5（活跃度改用 occurredAt + 乱序不回退）、#6（原子 upsert `ON CONFLICT DO NOTHING`）、#7（批量逐条隔离，响应加 `failed` 计数）、#8（metadata 模式键白名单最小化）、#9（脱敏规则扩展：私钥/GitHub/Slack/AWS/家目录/IP/手机号）。当前测试 **46 passed**。

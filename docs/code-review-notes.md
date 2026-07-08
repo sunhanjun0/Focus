@@ -49,14 +49,15 @@
 
 ## P2
 
-### 8. privacyMode='metadata' 未真正最小化
-- 位置：`src/redaction/redact.ts:28-30, 37-45`
+### 8. privacyMode='metadata' 未真正最小化 — 已修复（2026-07-08）
+- 位置：`src/redaction/redact.ts`（`sanitizeMetadata`）
 - 现象：该模式仍原样存整个 metadata，仅做 120 字符截断，无键白名单。
-- 影响：与“只保存来源/时间/类型和少量标签”语义不符。
+- 处理：metadata 模式按键白名单 `METADATA_MODE_ALLOWED_KEYS`（files/tags/labels/branch/repo/project）过滤，丢弃其余键；保留 `files` 以维持路径匹配。summary/local_raw 模式仍保留全部键（仅脱敏值）。测试见 `tests/redaction.test.ts`。
 
-### 9. 脱敏规则覆盖窄
-- 位置：`src/redaction/redact.ts:3-9`
+### 9. 脱敏规则覆盖窄 — 已修复（2026-07-08）
+- 位置：`src/redaction/redact.ts`（`SECRET_PATTERNS`）
 - 现象：仅覆盖 sk-、Bearer、email、/Users/。漏 ghp_/AWS key、/home/ 路径、IP、手机号等。
+- 处理：新增私钥块、GitHub token（gh?_/github_pat_）、Slack token（xox?-）、AWS AKIA/ASIA、/home/ 路径、IPv4、中国大陆手机号规则。测试见 `tests/redaction.test.ts`。
 
 ### 10. Focus 名称匹配噪音大 — 已修复（2026-07-07）
 - 位置：`src/matching/focus-matcher.ts:29-32`
