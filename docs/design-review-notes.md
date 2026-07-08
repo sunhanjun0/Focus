@@ -15,7 +15,7 @@
 | D5 | 隐私全局单档 | P1 | 缺 per-source 粒度（open question #5，实为刚需） |
 | D6 | 缺时间序模型 | P1 | 按摄取序而非 occurredAt，趋势/活跃度算错 |
 | D7 | 输出状态机悬空 | P1 | 反复强调“失败重试”，MVP 输出却是 pull-only 无失败态 |
-| D8 | 宣称 > 实现 | P2 | update_metadata、MCP/SDK 入口未落地，需标注“规划中” |
+| D8 | 宣称 > 实现 | P2 | update_metadata、MCP/SDK 入口未落地，需标注“规划中”（✅ 已于 2026-07-08 标注） |
 
 本文详细展开 D1/D2/D3 三条 P0，其余列为后续迭代。
 

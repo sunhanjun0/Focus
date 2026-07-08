@@ -137,11 +137,11 @@ Decision Engine 输出以下决策，均须持久化 `decision`、`reason`、候
 | `skip` | 事件无实质信号 | 只记录 run |
 | `check_in` | 命中已有 Focus（含低置信） | 写入 check-in |
 | `create_and_check_in` | 无合适候选 | 新建 Focus 并写入 check-in |
-| `update_metadata` | 仅需更新 Focus 名称/标签/描述 | 更新元数据，不新增 check-in |
+| `update_metadata`（规划中，尚未实现） | 仅需更新 Focus 名称/标签/描述 | 更新元数据，不新增 check-in |
 
-## 11. Focus 层级与关系（D4）
+## 11. Focus 层级与关系（D4，规划中，尚未实现）
 
-Focus 支持可选的父子/关联关系，解决“项目级视图 vs 子问题粒度”的两难：
+> 本节为目标设计，当前实现无 Focus↔Focus 关系。Focus 支持可选的父子/关联关系，解决“项目级视图 vs 子问题粒度”的两难：
 
 - 一个大项目 Focus 可挂载多个子 Focus（子任务、具体问题）。
 - 关系用于视图聚合与匹配传播（子 Focus 命中时可回溯父项目上下文），不改变归因主链路。
@@ -198,7 +198,7 @@ Focus 支持可选的父子/关联关系，解决“项目级视图 vs 子问题
 |---|---|
 | HTTP `POST /v1/events/ingest`、`/v1/events/batch` | 已实现 |
 | 只读查询 `/v1/runs`、`/v1/runs/:id`、`/v1/focuses` | 已实现 |
-| CLI（ingest、runs、focus、export、纠正类命令） | 部分实现，纠正命令为本版新增 |
+| CLI（ingest、runs、focus、export、checkin reassign/confirm/drop、stats） | 已实现 |
 | JSONL 导出 | 已实现 |
 | MCP、SDK | 规划中 |
 

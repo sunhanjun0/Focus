@@ -176,7 +176,7 @@ MVP 至少包含以下表：
 - `skip`：事件无实质关注信号，只记录运行结果。
 - `check_in`：匹配到已有 Focus，写入一次 check-in。
 - `create_and_check_in`：没有合适 Focus，创建后写入 check-in。
-- `update_metadata`：只更新 Focus 名称、标签或描述等元数据。
+- `update_metadata`（规划中，尚未实现）：只更新 Focus 名称、标签或描述等元数据。当前决策引擎只输出上述前三种。
 
 创建采用双阈值收敛：最高候选分数 `>= T_match` 高置信 `check_in`；`T_create <= 分 < T_match` 归入最高候选但标 `low_confidence` 进复核队列；`< T_create` 才 `create_and_check_in`。`T_match` / `T_create` 为可配置项，接入文件维度后需重新校准。每个决策都应保存理由，例如关键词命中、项目路径匹配、文件路径重合、最近活跃度或规则判定结果。
 

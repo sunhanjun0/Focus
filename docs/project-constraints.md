@@ -35,7 +35,7 @@
 | `redaction` | 脱敏、截断、隐私模式处理 | 判断是否写入 Focus |
 | `extraction` | 提取主题、进展、阻塞、下一步 | 访问输出系统 |
 | `matching` | 计算候选 Focus 和评分 | 写入 check-in |
-| `decision` | 选择 skip/check_in/create_and_check_in/update_metadata | 发送外部同步请求 |
+| `decision` | 选择 skip/check_in/create_and_check_in（update_metadata 规划中） | 发送外部同步请求 |
 | `outputs` | JSONL、Webhook 等输出 | 修改核心决策 |
 | `cli` | 本地调试和运维命令 | 绕过核心服务写库 |
 
