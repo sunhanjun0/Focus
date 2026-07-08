@@ -90,3 +90,15 @@ D1/D2/D3 三条 P0 已全部闭合。下一步可回看 `design-review-notes.md`
 已于 2026-07-08 修复：#5（活跃度改用 occurredAt + 乱序不回退）、#6（原子 upsert `ON CONFLICT DO NOTHING`）、#7（批量逐条隔离，响应加 `failed` 计数）、#8（metadata 模式键白名单最小化）、#9（脱敏规则扩展：私钥/GitHub/Slack/AWS/家目录/IP/手机号）、#11（日志改流式异步写 + 优雅关闭）。当前测试 **48 passed**。
 
 后续可推进设计层 D4-D8（P1/P2）：D5 per-source 隐私粒度、D6 时间序模型、D7 输出状态机、D4 Focus 层级、D8 宣称 vs 实现标注。
+
+## 8. 设计层增量（D4-D8）进度
+
+| 缺口 | 状态 |
+|---|---|
+| D8 宣称 vs 实现标注 | ✅ 已完成（2026-07-08，纯文档：update_metadata/D4 标注规划中） |
+| D5 per-source 隐私粒度 | ✅ 已完成（2026-07-08，`FIE_PRIVACY_BY_SOURCE` + `resolvePrivacyMode`；测试 `tests/config.test.ts`） |
+| D6 时间序模型 | 部分（活跃度已改 occurredAt；趋势视图/runs 排序未做） |
+| D7 输出状态机 | 未开始（倾向先改文档对齐 pull-only，push+重试留待真实下游） |
+| D4 Focus 层级 | 未开始（优先级最低，需求未验证前不做） |
+
+当前测试 **55 passed**（13 文件）。

@@ -13,11 +13,14 @@ import { extractEventSignal } from '../extraction/rule-extractor.js';
 import { matchFocuses } from '../matching/focus-matcher.js';
 import { redactEvent } from '../redaction/redact.js';
 import { extractPaths } from '../shared/paths.js';
+import { resolvePrivacyMode } from '../config.js';
 import type { AppConfig } from '../config.js';
 import type { AttentionEventInput, IngestResult } from '../shared/types.js';
 
 export function ingestEvent(db: Db, config: AppConfig, event: AttentionEventInput): IngestResult {
-  const redacted = redactEvent(event, config.privacyMode);
+  // 按来源解析生效的隐私模式（per-source 覆盖，缺省回退全局，D5）。
+  const privacyMode = resolvePrivacyMode(config, event.source);
+  const redacted = redactEvent(event, privacyMode);
   const inserted = insertAttentionEvent(db, {
     event,
     redactedSummary: redacted.summary,

@@ -12,8 +12,8 @@
 | D2 | 归因信号过窄 | P0 | matcher 未用 files 路径与历史 check-in，跨工具归因卖点落空 |
 | D3 | 无反馈闭环 | P0 | 定义了“用户修正率”指标却无任何纠正入口，质量无法迭代 |
 | D4 | Focus 扁平无层级 | P1 | 粒度两难，缺 focus↔focus 关系 |
-| D5 | 隐私全局单档 | P1 | 缺 per-source 粒度（open question #5，实为刚需） |
-| D6 | 缺时间序模型 | P1 | 按摄取序而非 occurredAt，趋势/活跃度算错 |
+| D5 | 隐私全局单档 | P1 | 缺 per-source 粒度（open question #5，实为刚需）（✅ 已于 2026-07-08 落地） |
+| D6 | 缺时间序模型 | P1 | 按摄取序而非 occurredAt，趋势/活跃度算错（部分落地：活跃度已改用 occurredAt，见 code-review #5） |
 | D7 | 输出状态机悬空 | P1 | 反复强调“失败重试”，MVP 输出却是 pull-only 无失败态 |
 | D8 | 宣称 > 实现 | P2 | update_metadata、MCP/SDK 入口未落地，需标注“规划中”（✅ 已于 2026-07-08 标注） |
 
@@ -180,6 +180,25 @@ reassign 时同步维护目标 Focus 的 `paths_json` / `last_activity_at`（复
 ### 5.5 MVP 边界
 - 必做：`focus_events` 表、reassign/confirm/drop CLI、修正率统计。
 - 后置：把修正数据回灌成 per-focus 学习到的关键词/路径权重（自动学习）。
+
+---
+
+## 5b. D5 方案：per-source 隐私粒度
+
+> 状态：已落地（2026-07-08）。
+
+### 目标
+在全局 `privacyMode` 之外，允许按事件来源覆盖隐私模式，兑现 open question #5 的刚需（如 `ci` 用 `metadata`、本地 `agent` 用 `local_raw`）。
+
+### 配置形态
+`.env` 新增 `FIE_PRIVACY_BY_SOURCE`，值为 JSON 映射 `source → metadata|summary|local_raw`（如 `{"ci":"metadata","agent":"local_raw"}`）。Zod 校验：非法 JSON 或非法 privacyMode 值直接报错，不静默降级。缺省为 `{}`。
+
+### 生效规则
+`resolvePrivacyMode(config, source)`：命中 per-source 覆盖用覆盖值，否则回退全局 `privacyMode`。覆盖可比全局更宽或更严，**按配置直接生效**（产品决策：本地单用户场景配置即信任）。`ingestEvent` 在脱敏前调用它解析实际模式。
+
+### 边界
+- 覆盖粒度到 `source`（协议字段），不细分到 sourceEventId。
+- 不影响幂等、可解释、run 可追溯等铁律；脱敏仍统一经 redaction 层。
 
 ---
 

@@ -77,6 +77,7 @@ FIE_PORT=17879
 FIE_HOST=127.0.0.1
 FIE_DB_PATH=./data/fie.sqlite
 FIE_PRIVACY_MODE=summary
+FIE_PRIVACY_BY_SOURCE={"ci":"metadata"}
 FIE_LOG_PATH=./logs/fie.jsonl
 ```
 
@@ -86,7 +87,7 @@ FIE_LOG_PATH=./logs/fie.jsonl
 - `summary`：保存脱敏摘要，推荐默认值。
 - `local_raw`：本地保存脱敏后正文，不上传外部服务。
 
-隐私模式支持按来源覆盖全局默认（见 `docs/product-design.md` 第 13 节），高敏来源可单独设更严模式。
+`FIE_PRIVACY_BY_SOURCE`（JSON 映射 `source→privacyMode`）按来源覆盖全局默认，未列出的来源回退全局；覆盖可比全局更宽或更严，按配置直接生效。由 `resolvePrivacyMode(config, source)` 在脱敏前解析（见 `docs/design-review-notes.md` §5b）。
 
 ## 6. 核心处理流程
 

@@ -12,6 +12,7 @@ function testConfig(dbPath: string): AppConfig {
     port: 17879,
     dbPath,
     privacyMode: 'summary',
+    privacyBySource: {},
     logPath: path.join(path.dirname(dbPath), 'test.jsonl'),
     tMatch: 50,
     tCreate: 25,
