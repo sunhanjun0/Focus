@@ -35,7 +35,7 @@
 ### 5. 活跃度/排序用摄取时间而非 occurredAt — 已修复（2026-07-08）
 - 位置：`src/db/repository.ts`（`createFocusWithCheckin`/`appendCheckin`）、`src/matching/focus-matcher.ts`
 - 影响：历史回填 / 乱序到达事件污染 Focus 活跃度与“7 天内 +5”匹配加分。
-- 处理：`last_activity_at` 改用 `event.occurredAt`；`appendCheckin` 取 `max(existing, occurredAt)` 防乱序回退；matcher 活跃度加分的参考时间改用当前事件 `occurredAt` 而非 `Date.now()`，保证回填/乱序批次自洽。测试见 `tests/ingestion.test.ts`（“活跃度以 occurredAt 为准…”）。listRuns 仍按 `created_at`（摄取处理顺序，对 run 视图语义合理，未改）。
+- 处理：`last_activity_at` 改用 `event.occurredAt`；`appendCheckin` 取 `max(existing, occurredAt)` 防乱序回退；matcher 活跃度加分的参考时间改用当前事件 `occurredAt` 而非 `Date.now()`，保证回填/乱序批次自洽。测试见 `tests/ingestion.test.ts`（“活跃度以 occurredAt 为准…”）。`listRuns` 排序已随 D6 一并改用 `occurred_at`（见 `design-review-notes.md` D6、`tests/trend.test.ts`）。
 
 ### 6. 先查后插在多进程共享 DB 下非原子 — 已修复（2026-07-08）
 - 位置：`src/db/repository.ts`（`insertAttentionEvent`）
