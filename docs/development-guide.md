@@ -110,10 +110,10 @@ Decision Engine 决策（双阈值：check_in / 低置信 check_in / create）
   ↓
 Focus/Check-in 写入
   ↓
-通用 JSONL、Webhook 或其他输出适配器
+通用 JSONL 导出（pull 模式）
 ```
 
-归因、活跃度和趋势一律基于事件的 `occurredAt`，而非摄取时间，以支持乱序与历史回填。每次处理都应生成 `ingestion_runs` 记录，保留输入摘要、脱敏结果、候选 Focus、最终决策、失败原因和重试状态。
+归因、活跃度和趋势一律基于事件的 `occurredAt`，而非摄取时间，以支持乱序与历史回填。每次处理都应生成 `ingestion_runs` 记录，保留输入摘要、脱敏结果、候选 Focus、最终决策与失败原因（`error`）。当前输出为 pull-only（JSONL 导出），run 无“输出失败/重试”状态；失败/重试状态机随 push 输出一并引入（规划中，见 `product-design.md` §15）。
 
 ## 7. HTTP API 约定
 
@@ -161,9 +161,9 @@ Content-Type: application/json
 MVP 至少包含以下表：
 
 - `attention_events`：保存外部事件的来源、ID、类型、时间、摘要和元数据。
-- `ingestion_runs`：保存每次处理过程、决策、错误和重试信息。
-- `focuses`：保存稳定关注对象、标签、权重、最近活动时间，以及生命周期字段 `status`（active/dormant/archived/merged）、`merged_into`、`paths_json`。
-- `focus_checkins`：保存一次关注归因的摘要、阻塞、下一步和来源，以及 `paths_json`、`low_confidence`、`corrected`。
+- `ingestion_runs`：保存每次处理的状态（processing/duplicate/accepted/failed）、决策、理由、候选 Focus 与失败原因（`error`）。当前无重试状态字段（pull-only）。
+- `focuses`：保存稳定关注对象、标签、最近活动时间，以及生命周期字段 `status`（active/dormant/archived/merged）、`merged_into`、`paths_json`。
+- `focus_checkins`：保存一次关注归因的摘要、阻塞、下一步和来源，以及 `paths_json`、`low_confidence`、`corrected`、`dropped`。
 - `focus_events`：保存纠正与生命周期操作审计（reassign/merge/archive/drop/confirm）。
 
 事件、运行、Focus 和 Check-in 之间的关联由外键维护（`ingestion_runs.event_id`、`focus_checkins.run_id` 与 `focus_checkins.focus_id`），不再单设关联表。
@@ -193,7 +193,7 @@ MVP 至少包含以下表：
 - Decision Engine 双阈值分档正确（check_in / 低置信 / create）。
 - Focus 生命周期：合并后 check-in 指针与 `paths_json` 一致，归档/衰减状态转换正确。
 - 纠正闭环：reassign 后指针变更、`corrected` 标记与修正率统计正确。
-- 输出适配器失败时不会丢失 run 状态，可重试。
+- JSONL 导出（pull 模式）不改变 run 状态；导出失败/重试状态机随 push 输出一并引入（规划中）。
 
 测试文件放在 `tests/` 下，并使用 `*.test.ts` 命名。
 

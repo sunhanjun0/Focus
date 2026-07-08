@@ -98,7 +98,7 @@ D1/D2/D3 三条 P0 已全部闭合。下一步可回看 `design-review-notes.md`
 | D8 宣称 vs 实现标注 | ✅ 已完成（2026-07-08，纯文档：update_metadata/D4 标注规划中） |
 | D5 per-source 隐私粒度 | ✅ 已完成（2026-07-08，`FIE_PRIVACY_BY_SOURCE` + `resolvePrivacyMode`；测试 `tests/config.test.ts`） |
 | D6 时间序模型 | 部分（活跃度已改 occurredAt；趋势视图/runs 排序未做） |
-| D7 输出状态机 | 未开始（倾向先改文档对齐 pull-only，push+重试留待真实下游） |
+| D7 输出状态机 | ✅ 文档对齐 pull-only（2026-07-08，纯文档：统一表述"当前 pull-only 无输出失败/重试态"，push+重试状态机随真实下游落地） |
 | D4 Focus 层级 | 未开始（优先级最低，需求未验证前不做） |
 
 当前测试 **55 passed**（13 文件）。

@@ -60,7 +60,7 @@
 
 - 表名使用 snake_case，例如 `attention_events`、`ingestion_runs`。
 - 写操作必须记录 `created_at`，状态变化记录 `updated_at`。
-- `ingestion_runs` 必须能追溯对应事件、决策、错误和重试状态。
+- `ingestion_runs` 必须能追溯对应事件、决策与错误原因（`error`）。当前为 pull-only 输出，无重试状态字段；重试状态随 push 输出一并引入（规划中）。
 - 不要删除原始 run 记录；需要隐藏时使用状态字段表达。
 - migration 必须可重复执行，不依赖人工手动改库。
 
@@ -119,7 +119,7 @@ HTTP 边界返回稳定错误结构，不暴露未处理异常：
 }
 ```
 
-内部错误必须记录到 run 和日志。可重试错误与不可重试错误要区分，例如输出目标不可达属于可重试，事件 schema 无效属于不可重试。
+内部错误必须记录到 run 和日志。可重试错误与不可重试错误的区分（如输出目标不可达属可重试、事件 schema 无效属不可重试）随 push 输出状态机一并落地（规划中）；当前 pull-only 输出下，run 失败仅落 `failed` 状态与 `error` 原因。
 
 ## 11. Adapter 扩展流程
 
