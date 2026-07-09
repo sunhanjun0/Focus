@@ -99,7 +99,7 @@ D1/D2/D3 三条 P0 已全部闭合。下一步可回看 `design-review-notes.md`
 | D5 per-source 隐私粒度 | ✅ 已完成（2026-07-08，`FIE_PRIVACY_BY_SOURCE` + `resolvePrivacyMode`；测试 `tests/config.test.ts`） |
 | D6 时间序模型 | ✅ 已完成（2026-07-08，活跃度用 occurredAt + runs 按 occurred_at 排序 + `fie trend`/`GET /v1/trend` 按 occurredAt 日聚合；测试 `tests/trend.test.ts`） |
 | D7 输出状态机 | ✅ 文档对齐 pull-only（2026-07-08，纯文档：统一表述"当前 pull-only 无输出失败/重试态"，push+重试状态机随真实下游落地） |
-| D4 Focus 层级 | 未开始（优先级最低，需求未验证前不做） |
+| D4 Focus 层级 | ⏸ 需求验证结论暂不建（2026-07-09，粒度两难已被收敛/merge/project 分组/trend 覆盖，无需求证据；触发条件与最小楔子见 `design-review-notes.md §5c`） |
 
 当前测试 **59 passed**（14 文件）。
 
