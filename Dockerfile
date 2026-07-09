@@ -20,6 +20,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY src/db/schema.sql ./dist/db/schema.sql
+COPY public ./public
 
 ENV FIE_HOST=0.0.0.0 \
     FIE_PORT=17879 \

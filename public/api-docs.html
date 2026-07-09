@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIE 接口文档</title>
+  <style>
+    :root {
+      --bg: #0f1419; --panel: #1a2029; --border: #2a323d; --fg: #d7dde5;
+      --muted: #8a94a3; --accent: #4c9aff; --ok: #35c46a; --fail: #ff5c5c;
+      --warn: #f5b544; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px; line-height: 1.6; }
+    header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex;
+      align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header .sub { color: var(--muted); font-size: 12px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { display: grid; grid-template-columns: 220px 1fr; gap: 0; }
+    @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } nav { display: none; } }
+    nav { border-right: 1px solid var(--border); padding: 16px; position: sticky; top: 57px;
+      align-self: start; height: calc(100vh - 57px); overflow: auto; }
+    nav a { display: block; color: var(--muted); font-size: 13px; padding: 4px 0; }
+    nav a:hover { color: var(--fg); text-decoration: none; }
+    nav .group { color: var(--fg); font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+      margin: 14px 0 6px; }
+    main { padding: 24px 32px; max-width: 900px; }
+    section { margin-bottom: 40px; }
+    h2 { font-size: 18px; margin: 0 0 4px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    h3 { font-size: 15px; margin: 24px 0 8px; }
+    .method { display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 600;
+      padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
+    .method.get { background: rgba(76,154,255,.15); color: var(--accent); }
+    .method.post { background: rgba(53,196,106,.15); color: var(--ok); }
+    .path { font-family: var(--mono); font-size: 14px; }
+    p.desc { color: var(--muted); margin: 6px 0 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    td code, .path code { font-family: var(--mono); }
+    code { font-family: var(--mono); background: #0d1117; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .req { color: var(--fail); font-size: 11px; }
+    .opt { color: var(--muted); font-size: 11px; }
+    pre { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px;
+      font-family: var(--mono); font-size: 12px; overflow: auto; white-space: pre; margin: 10px 0; }
+    .badge { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 8px;
+      border-radius: 10px; margin: 0 4px 4px 0; }
+    .badge.s2 { background: rgba(53,196,106,.15); color: var(--ok); }
+    .badge.s4 { background: rgba(245,181,68,.15); color: var(--warn); }
+    .badge.s5 { background: rgba(255,92,92,.15); color: var(--fail); }
+    .note { background: rgba(76,154,255,.08); border-left: 3px solid var(--accent); padding: 10px 14px;
+      border-radius: 0 6px 6px 0; margin: 12px 0; color: var(--fg); font-size: 13px; }
+    .warn { background: rgba(245,181,68,.08); border-left-color: var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FIE 接口文档</h1>
+    <span class="sub">Focus Ingestion Engine · HTTP API v1</span>
+    <div class="sub" style="margin-left:auto">
+      <a href="/console">→ 测试控制台</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <nav>
+      <div class="group">概览</div>
+      <a href="#base">基础约定</a>
+      <a href="#event">事件对象</a>
+      <a href="#result">摄取结果</a>
+      <a href="#errors">错误格式</a>
+      <div class="group">摄取</div>
+      <a href="#ingest">POST /v1/events/ingest</a>
+      <a href="#batch">POST /v1/events/batch</a>
+      <div class="group">查询</div>
+      <a href="#runs">GET /v1/runs</a>
+      <a href="#run-detail">GET /v1/runs/:id</a>
+      <a href="#focuses">GET /v1/focuses</a>
+      <a href="#trend">GET /v1/trend</a>
+      <a href="#health">GET /health</a>
+      <div class="group">附录</div>
+      <a href="#scoring">匹配打分与决策</a>
+    </nav>
+
+    <main>
+      <section id="base">
+        <h2>基础约定</h2>
+        <p class="desc">Focus Ingestion Engine 是本地注意力摄取与焦点归因引擎。所有接口以 JSON 交互。</p>
+        <table>
+          <tr><th style="width:120px">项</th><th>说明</th></tr>
+          <tr><td>Base URL</td><td><code>http://127.0.0.1:17879</code>（容器内绑定 <code>0.0.0.0:17879</code>；本文档与测试台默认同源）</td></tr>
+          <tr><td>Content-Type</td><td>请求体为 JSON 时须带 <code>content-type: application/json</code></td></tr>
+          <tr><td>字符编码</td><td>UTF-8</td></tr>
+          <tr><td>鉴权</td><td>无。网络暴露面由绑定地址（<code>FIE_HOST</code>）控制</td></tr>
+          <tr><td>CORS</td><td>仅对本机来源（<code>localhost</code> / <code>127.0.0.1</code> / <code>[::1]</code> 及 <code>file://</code> 的 <code>null</code> 源）放行并处理预检 <code>OPTIONS</code></td></tr>
+        </table>
+        <div class="note">核心链路严格单向：<code>脱敏 → 幂等写入 → 创建 run → 提取 → 匹配 → 决策 → 写 Focus/check-in</code>。任何写入日志/输出的内容都先经脱敏层，摘要中的邮箱、Token、Bearer、IP、手机号、<code>/Users/*</code> 路径会被替换为 <code>[REDACTED_*]</code>。</div>
+      </section>
+
+      <section id="event">
+        <h2>事件对象 AttentionEvent</h2>
+        <p class="desc">摄取接口的请求体。<code>source</code> + <code>sourceEventId</code> 组成幂等键（数据库 UNIQUE 约束），重复提交返回 <code>duplicate</code> 且不写新 check-in。</p>
+        <table>
+          <tr><th style="width:150px">字段</th><th style="width:110px">类型</th><th>说明</th></tr>
+          <tr><td><code>source</code> <span class="req">必填</span></td><td>string</td><td>事件来源，如 <code>codex</code> / <code>git-hook</code> / <code>ci</code> / <code>agent</code></td></tr>
+          <tr><td><code>sourceEventId</code> <span class="req">必填</span></td><td>string</td><td>来源内唯一的事件 ID，与 <code>source</code> 组成幂等键</td></tr>
+          <tr><td><code>occurredAt</code> <span class="req">必填</span></td><td>string</td><td>ISO 8601 且带时区偏移，如 <code>2026-07-09T09:00:00+08:00</code>。活跃度/趋势以此为准</td></tr>
+          <tr><td><code>type</code> <span class="req">必填</span></td><td>string</td><td>形如 <code>domain.action</code> 的事件类型，如 <code>conversation.finished</code>、<code>git.commit.created</code>、<code>automation.completed</code></td></tr>
+          <tr><td><code>project</code> <span class="opt">可选</span></td><td>string</td><td>项目名。命中候选 Focus 项目名时贡献最高权重（+50）</td></tr>
+          <tr><td><code>summary</code> <span class="opt">可选</span></td><td>string</td><td>一句话摘要。参与关键词提取，写入前脱敏</td></tr>
+          <tr><td><code>content</code> <span class="opt">可选</span></td><td>string</td><td>原始正文。按隐私模式决定是否保留，不会出现在查询响应中</td></tr>
+          <tr><td><code>metadata</code> <span class="opt">可选</span></td><td>object</td><td>任意键值。其中 <code>files</code>（字符串数组）用于文件维度的跨工具匹配</td></tr>
+        </table>
+      </section>
+
+      <section id="result">
+        <h2>摄取结果 IngestResult</h2>
+        <p class="desc"><code>/v1/events/ingest</code> 的响应体；批量接口的每条 <code>results[]</code> 同构（另带 <code>source</code>/<code>sourceEventId</code>）。</p>
+        <table>
+          <tr><th style="width:150px">字段</th><th style="width:150px">类型</th><th>说明</th></tr>
+          <tr><td><code>status</code></td><td><code>"accepted"</code> | <code>"duplicate"</code></td><td>是否被受理；重复事件为 <code>duplicate</code></td></tr>
+          <tr><td><code>deduplicated</code></td><td>boolean</td><td>是否命中幂等去重</td></tr>
+          <tr><td><code>decision</code></td><td><code>"skip"</code> | <code>"check_in"</code> | <code>"create_and_check_in"</code> | null</td><td>决策结果；重复事件为 <code>null</code></td></tr>
+          <tr><td><code>focusId</code></td><td>string | null</td><td>命中/新建的 Focus ID；<code>skip</code> 或重复时为 <code>null</code></td></tr>
+          <tr><td><code>runId</code></td><td>string</td><td>本次 ingestion run 的 ID，可用于查询详情</td></tr>
+          <tr><td><code>reason</code></td><td>string | null</td><td>决策可解释理由</td></tr>
+          <tr><td><code>lowConfidence</code></td><td>boolean</td><td>分数落在 <code>[T_create, T_match)</code> 复核区间时为 <code>true</code></td></tr>
+        </table>
+      </section>
+
+      <section id="errors">
+        <h2>错误格式</h2>
+        <pre>{
+  "error": {
+    "code": "invalid_event",
+    "message": "事件格式无效",
+    "details": [ { "path": "occurredAt", "message": "..." } ]
+  }
+}</pre>
+        <table>
+          <tr><th style="width:170px">code</th><th style="width:90px">HTTP</th><th>场景</th></tr>
+          <tr><td><code>invalid_event</code></td><td>400</td><td>单条摄取的事件校验失败</td></tr>
+          <tr><td><code>invalid_batch</code></td><td>400</td><td>批量请求体校验失败（如 <code>events</code> 为空或超过 100 条）</td></tr>
+          <tr><td><code>run_not_found</code></td><td>404</td><td>指定 run 不存在</td></tr>
+          <tr><td><code>page_not_found</code></td><td>404</td><td>静态页缺失</td></tr>
+          <tr><td><code>internal_error</code></td><td>500</td><td>服务端内部错误</td></tr>
+        </table>
+      </section>
+
+      <section id="ingest">
+        <h2><span class="method post">POST</span><span class="path">/v1/events/ingest</span></h2>
+        <p class="desc">摄取单条事件，返回决策结果。</p>
+        <span class="badge s2">202 已受理</span>
+        <span class="badge s2">200 重复（幂等命中）</span>
+        <span class="badge s5">400 invalid_event</span>
+        <span class="badge s5">500 internal_error</span>
+        <h3>请求示例</h3>
+        <pre>curl -X POST http://127.0.0.1:17879/v1/events/ingest \
+  -H 'content-type: application/json' \
+  -d '{
+    "source": "codex",
+    "sourceEventId": "pay-codex-001",
+    "occurredAt": "2026-07-09T09:00:00+08:00",
+    "type": "conversation.finished",
+    "project": "支付网关重构",
+    "summary": "实现支付网关的路由分发骨架，重构原有单体下单逻辑。",
+    "metadata": { "files": ["src/payment/gateway.ts", "src/payment/router.ts"] }
+  }'</pre>
+        <h3>响应示例（202）</h3>
+        <pre>{
+  "status": "accepted",
+  "deduplicated": false,
+  "decision": "create_and_check_in",
+  "focusId": "focus_xxx",
+  "runId": "run_xxx",
+  "reason": "无匹配候选，创建新 Focus",
+  "lowConfidence": false
+}</pre>
+      </section>
+
+      <section id="batch">
+        <h2><span class="method post">POST</span><span class="path">/v1/events/batch</span></h2>
+        <p class="desc">批量摄取（1–100 条）。逐条隔离：任一条失败不影响其余，失败计入结果。</p>
+        <span class="badge s2">202 已受理</span>
+        <span class="badge s5">400 invalid_batch</span>
+        <span class="badge s5">500 internal_error</span>
+        <h3>请求体</h3>
+        <pre>{ "events": [ AttentionEvent, ... ] }   // 1 ≤ 长度 ≤ 100</pre>
+        <h3>响应示例（202）</h3>
+        <pre>{
+  "status": "accepted",
+  "accepted": 1,
+  "duplicates": 1,
+  "failed": 0,
+  "results": [
+    { "source": "ci", "sourceEventId": "batch-1", "status": "accepted", "decision": "check_in", "runId": "run_a", ... },
+    { "source": "ci", "sourceEventId": "batch-1", "status": "duplicate", "deduplicated": true, "runId": "run_b", ... }
+  ]
+}</pre>
+      </section>
+
+      <section id="runs">
+        <h2><span class="method get">GET</span><span class="path">/v1/runs</span></h2>
+        <p class="desc">列出 ingestion run（按事件 <code>occurredAt</code> 倒序）。</p>
+        <table>
+          <tr><th style="width:110px">查询参数</th><th style="width:90px">默认</th><th>说明</th></tr>
+          <tr><td><code>limit</code></td><td>50</td><td>返回条数，上限 200</td></tr>
+        </table>
+        <h3>响应示例（200）</h3>
+        <pre>{
+  "runs": [
+    {
+      "id": "run_xxx", "status": "accepted", "decision": "check_in", "reason": "...",
+      "source": "git-hook", "source_event_id": "pay-commit-001",
+      "event_type": "git.commit.created", "occurred_at": "2026-07-09T10:30:00+08:00",
+      "created_at": "2026-07-09T10:30:01.000Z"
+    }
+  ]
+}</pre>
+      </section>
+
+      <section id="run-detail">
+        <h2><span class="method get">GET</span><span class="path">/v1/runs/:id</span></h2>
+        <p class="desc">单次 run 详情，含事件（脱敏后摘要）、决策候选与 check-in。<strong>不暴露原始正文</strong>。</p>
+        <span class="badge s2">200</span>
+        <span class="badge s5">404 run_not_found</span>
+        <h3>响应示例（200）</h3>
+        <pre>{
+  "run": {
+    "id": "run_xxx", "status": "accepted", "decision": "check_in",
+    "reason": "...", "candidates": [ { "id": "focus_x", "name": "...", "score": 75, "reason": "..." } ],
+    "error": null, "created_at": "...", "updated_at": "...",
+    "event": {
+      "id": "evt_xxx", "source": "agent", "sourceEventId": "pay-agent-001",
+      "occurredAt": "...", "type": "conversation.finished", "project": "支付网关重构",
+      "summary": "实现登录令牌轮换。联系人 [REDACTED_EMAIL]，临时密钥 [REDACTED_TOKEN] ...",
+      "metadata": { "files": ["src/payment/auth.ts"] }, "createdAt": "..."
+    },
+    "checkin": {
+      "id": "chk_xxx", "notes": "...", "blocker": null, "nextAction": null,
+      "createdAt": "...", "focus": { "id": "focus_x", "name": "...", "project": "支付网关重构" }
+    }
+  }
+}</pre>
+        <div class="note">可用于核对脱敏：T6 用例摘要含邮箱/Token/IP/手机号/家目录路径，返回时应全部呈现为 <code>[REDACTED_*]</code>。</div>
+      </section>
+
+      <section id="focuses">
+        <h2><span class="method get">GET</span><span class="path">/v1/focuses</span></h2>
+        <p class="desc">列出 Focus（按 <code>last_activity_at</code> 倒序）。</p>
+        <table>
+          <tr><th style="width:140px">查询参数</th><th style="width:90px">默认</th><th>说明</th></tr>
+          <tr><td><code>limit</code></td><td>50</td><td>返回条数，上限 200</td></tr>
+          <tr><td><code>includeArchived</code></td><td>false</td><td><code>1</code> 或 <code>true</code> 时包含已归档/合并的 Focus</td></tr>
+        </table>
+        <h3>响应示例（200）</h3>
+        <pre>{
+  "focuses": [
+    {
+      "id": "focus_xxx", "name": "支付网关重构", "project": "支付网关重构",
+      "keywords": ["重构", "实现"], "status": "active", "merged_into": null,
+      "last_activity_at": "2026-07-09T14:00:00+08:00",
+      "created_at": "...", "updated_at": "..."
+    }
+  ]
+}</pre>
+      </section>
+
+      <section id="trend">
+        <h2><span class="method get">GET</span><span class="path">/v1/trend</span></h2>
+        <p class="desc">按事件 <code>occurredAt</code> 所在日历日聚合的活跃度趋势（排除软删 check-in）。</p>
+        <table>
+          <tr><th style="width:110px">查询参数</th><th style="width:90px">默认</th><th>说明</th></tr>
+          <tr><td><code>days</code></td><td>30</td><td>回溯天数，上限 365</td></tr>
+          <tr><td><code>focusId</code></td><td>—</td><td>仅统计指定 Focus</td></tr>
+        </table>
+        <h3>响应示例（200）</h3>
+        <pre>{
+  "trend": [
+    { "date": "2026-07-09", "checkins": 4, "focuses": 1 }
+  ]
+}</pre>
+      </section>
+
+      <section id="health">
+        <h2><span class="method get">GET</span><span class="path">/health</span></h2>
+        <p class="desc">健康检查。</p>
+        <pre>{ "ok": true, "service": "focus-ingestion-engine" }</pre>
+      </section>
+
+      <section id="scoring">
+        <h2>附录：匹配打分与决策</h2>
+        <p class="desc">匹配器为每个候选 Focus 打分，取分数最高者进入双阈值决策。</p>
+        <table>
+          <tr><th style="width:220px">信号</th><th>加分</th></tr>
+          <tr><td>项目名匹配（<code>project</code>）</td><td>+50</td></tr>
+          <tr><td>Focus 名命中</td><td>+30</td></tr>
+          <tr><td>每个关键词命中</td><td>+10</td></tr>
+          <tr><td>文件路径完全一致 / 同目录 / 同文件名</td><td>+25 / +8 / +4（路径维度上限 +50）</td></tr>
+          <tr><td>近期活跃（≤7 天）</td><td>+5</td></tr>
+        </table>
+        <table>
+          <tr><th style="width:220px">阈值</th><th>行为</th></tr>
+          <tr><td>score ≥ <code>T_match</code>（默认 50）</td><td><code>check_in</code> 高置信归入</td></tr>
+          <tr><td><code>T_create</code>（默认 25）≤ score &lt; <code>T_match</code></td><td><code>check_in</code> 并标 <code>lowConfidence</code> 复核</td></tr>
+          <tr><td>无候选但事件实质</td><td><code>create_and_check_in</code> 新建 Focus</td></tr>
+          <tr><td>非实质（trivial）</td><td><code>skip</code> 仅记录 run</td></tr>
+        </table>
+        <div class="note warn">阈值可用环境变量 <code>FIE_T_MATCH</code> / <code>FIE_T_CREATE</code> 调整；若 <code>T_create > T_match</code> 会收敛到相等（低置信区间为空）。</div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

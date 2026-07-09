@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import Fastify from 'fastify';
 import { ZodError } from 'zod';
 import type { Db } from '../db/index.js';
@@ -25,6 +27,25 @@ export function createHttpServer(db: Db, config: AppConfig, logger: Logger) {
       return reply.code(204).send();
     }
   });
+
+  // 静态页托管：测试控制台与接口文档随服务分发，浏览器可直接访问（同源，无需 CORS）。
+  // 路由为固定白名单、不接受用户提供的文件名，故无路径遍历风险。
+  const publicDir = path.resolve('public');
+  const staticPages: Array<{ route: string; file: string }> = [
+    { route: '/', file: 'test-console.html' },
+    { route: '/console', file: 'test-console.html' },
+    { route: '/docs', file: 'api-docs.html' },
+  ];
+  for (const page of staticPages) {
+    server.get(page.route, async (_request, reply) => {
+      try {
+        const html = fs.readFileSync(path.join(publicDir, page.file), 'utf8');
+        return reply.type('text/html; charset=utf-8').send(html);
+      } catch {
+        return reply.code(404).send({ error: { code: 'page_not_found', message: '静态页面缺失' } });
+      }
+    });
+  }
 
   server.get('/health', async () => ({ ok: true, service: 'focus-ingestion-engine' }));
 

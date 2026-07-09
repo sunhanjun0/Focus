@@ -165,4 +165,19 @@ describe('http server', () => {
     });
     expect(response.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  it('托管测试控制台与接口文档静态页', async () => {
+    const dbPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'fie-')), 'fie.sqlite');
+    const server = createHttpServer(openDatabase(dbPath), testConfig(dbPath), silentLogger);
+
+    const console = await server.inject({ method: 'GET', url: '/' });
+    expect(console.statusCode).toBe(200);
+    expect(console.headers['content-type']).toContain('text/html');
+    expect(console.body).toContain('FIE 测试控制台');
+
+    const docs = await server.inject({ method: 'GET', url: '/docs' });
+    expect(docs.statusCode).toBe(200);
+    expect(docs.headers['content-type']).toContain('text/html');
+    expect(docs.body).toContain('FIE 接口文档');
+  });
 });
