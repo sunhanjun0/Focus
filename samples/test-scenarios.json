@@ -1,0 +1,138 @@
+{
+  "description": "Focus Ingestion Engine 端到端测试用例集：按顺序摄取以覆盖决策树全路径（新建 / 跨工具收敛 check_in / 幂等重复 / 低置信 / skip / 脱敏）。项目名统一用「支付网关重构」。用例预期基于干净数据库；容器可用 `docker compose down -v && docker compose up -d` 重置卷后重跑（幂等用例 T3 在同一库内二次运行会随其余用例变为 duplicate）。顺序执行前后可对比 GET /v1/focuses 与 /v1/trend。",
+  "baseUrl": "http://127.0.0.1:17879",
+  "scenarios": [
+    {
+      "id": "T1",
+      "title": "新建 Focus（首个实质事件）",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "decision": "create_and_check_in" },
+      "note": "无候选 Focus，命中关键词「重构/实现」且含文件变更，创建新 Focus。",
+      "event": {
+        "source": "codex",
+        "sourceEventId": "pay-codex-001",
+        "occurredAt": "2026-07-09T09:00:00+08:00",
+        "type": "conversation.finished",
+        "project": "支付网关重构",
+        "summary": "实现支付网关的路由分发骨架，重构原有单体下单逻辑。下一步：接入结算链路并补测试。",
+        "metadata": {
+          "files": ["src/payment/gateway.ts", "src/payment/router.ts"],
+          "threadId": "pay-thread-1"
+        }
+      }
+    },
+    {
+      "id": "T2",
+      "title": "跨工具高置信收敛（git-hook → 同一 Focus）",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "decision": "check_in", "lowConfidence": false },
+      "note": "不同来源但项目名匹配（+50）且共享 gateway.ts（+25），高置信归入 T1 的 Focus，兑现跨工具归因。",
+      "event": {
+        "source": "git-hook",
+        "sourceEventId": "pay-commit-001",
+        "occurredAt": "2026-07-09T10:30:00+08:00",
+        "type": "git.commit.created",
+        "project": "支付网关重构",
+        "summary": "提交结算链路对接的第一版实现，覆盖网关到结算的调用。",
+        "metadata": {
+          "files": ["src/payment/gateway.ts", "src/payment/settlement.ts"],
+          "branch": "feature/payment-gateway"
+        }
+      }
+    },
+    {
+      "id": "T3",
+      "title": "幂等：重复 sourceEventId",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "status": "duplicate" },
+      "note": "与 T1 完全相同的 source + sourceEventId，应返回 duplicate，不写新的 check-in。",
+      "event": {
+        "source": "codex",
+        "sourceEventId": "pay-codex-001",
+        "occurredAt": "2026-07-09T09:00:00+08:00",
+        "type": "conversation.finished",
+        "project": "支付网关重构",
+        "summary": "实现支付网关的路由分发骨架，重构原有单体下单逻辑。下一步：接入结算链路并补测试。",
+        "metadata": {
+          "files": ["src/payment/gateway.ts", "src/payment/router.ts"],
+          "threadId": "pay-thread-1"
+        }
+      }
+    },
+    {
+      "id": "T4",
+      "title": "低置信匹配（无项目名，仅单条路径重合）",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "decision": "check_in", "lowConfidence": true },
+      "note": "无 project、无关键词命中，仅共享 gateway.ts（+25）+ 近期活跃（+5）≈ 30，落在 [25,50) 复核区间，标 lowConfidence。",
+      "event": {
+        "source": "ci",
+        "sourceEventId": "pay-ci-001",
+        "occurredAt": "2026-07-09T11:00:00+08:00",
+        "type": "automation.completed",
+        "summary": "同步上游服务的一处调用调整，确认与结算链路兼容。",
+        "metadata": {
+          "files": ["src/payment/gateway.ts"],
+          "labels": ["pipeline"]
+        }
+      }
+    },
+    {
+      "id": "T5",
+      "title": "skip（无实质关注信号）",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "decision": "skip" },
+      "note": "无文件、非完成/提交类事件、不含实质关键词，判为 trivial，只记录 run 不写 Focus。",
+      "event": {
+        "source": "codex",
+        "sourceEventId": "pay-chat-001",
+        "occurredAt": "2026-07-09T11:15:00+08:00",
+        "type": "conversation.message",
+        "summary": "今天和同事口头对齐了一下本周的日常安排。"
+      }
+    },
+    {
+      "id": "T6",
+      "title": "脱敏验证（敏感信息进摘要）",
+      "endpoint": "/v1/events/ingest",
+      "expect": { "decision": "check_in" },
+      "note": "摘要含邮箱/token/IP/手机号/家目录路径，含关键词「实现」且项目名匹配，归入 Focus。发送后用『查看该 run 详情』核对返回摘要已被脱敏为 [REDACTED_*]。",
+      "event": {
+        "source": "agent",
+        "sourceEventId": "pay-agent-001",
+        "occurredAt": "2026-07-09T14:00:00+08:00",
+        "type": "conversation.finished",
+        "project": "支付网关重构",
+        "summary": "实现登录令牌轮换。联系人 alice@example.com，临时密钥 sk-abcdef1234567890ABCD，部署机 10.0.0.5，联系电话 13800138000，配置路径 /Users/hanjun/secret/config.json。",
+        "metadata": {
+          "files": ["src/payment/auth.ts"]
+        }
+      }
+    }
+  ],
+  "batchExample": {
+    "endpoint": "/v1/events/batch",
+    "payload": {
+      "events": [
+        {
+          "source": "ci",
+          "sourceEventId": "pay-batch-001",
+          "occurredAt": "2026-07-09T15:00:00+08:00",
+          "type": "automation.completed",
+          "project": "支付网关重构",
+          "summary": "批量事件示例：CI 完成一次针对结算链路的回归测试。",
+          "metadata": { "files": ["tests/payment/settlement.test.ts"] }
+        },
+        {
+          "source": "git-hook",
+          "sourceEventId": "pay-batch-002",
+          "occurredAt": "2026-07-09T15:05:00+08:00",
+          "type": "git.commit.created",
+          "project": "支付网关重构",
+          "summary": "批量事件示例：修复结算金额精度问题。",
+          "metadata": { "files": ["src/payment/settlement.ts"] }
+        }
+      ]
+    }
+  }
+}

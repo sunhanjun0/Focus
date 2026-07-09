@@ -10,6 +10,22 @@ import { attentionEventSchema, batchIngestSchema } from '../ingestion/schema.js'
 export function createHttpServer(db: Db, config: AppConfig, logger: Logger) {
   const server = Fastify({ logger: false });
 
+  // 本地测试页面跨源支持：仅对本机来源（localhost/127.0.0.1/[::1] 及 file:// 的 "null" 源）
+  // 放行并处理浏览器预检 OPTIONS。网络暴露面仍由 FIE_HOST 绑定地址控制，CORS 不扩大暴露。
+  server.addHook('onRequest', async (request, reply) => {
+    const origin = request.headers.origin;
+    if (origin && isLocalOrigin(origin)) {
+      reply.header('access-control-allow-origin', origin);
+      reply.header('vary', 'Origin');
+      reply.header('access-control-allow-methods', 'GET, POST, OPTIONS');
+      reply.header('access-control-allow-headers', 'content-type');
+      reply.header('access-control-max-age', '600');
+    }
+    if (request.method === 'OPTIONS') {
+      return reply.code(204).send();
+    }
+  });
+
   server.get('/health', async () => ({ ok: true, service: 'focus-ingestion-engine' }));
 
   server.get('/v1/runs', async (request) => {
@@ -128,4 +144,14 @@ function parseDays(value: string | undefined): number {
   const parsed = Number(value || 30);
   if (!Number.isFinite(parsed) || parsed < 1) return 30;
   return Math.min(Math.trunc(parsed), 365);
+}
+
+function isLocalOrigin(origin: string): boolean {
+  if (origin === 'null') return true; // file:// 打开的本地页面，Origin 为字符串 "null"
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+  } catch {
+    return false;
+  }
 }

@@ -133,4 +133,36 @@ describe('http server', () => {
     expect(response.statusCode).toBe(404);
     expect(response.json().error.code).toBe('run_not_found');
   });
+
+  it('对本机来源放行 CORS 并处理预检 OPTIONS', async () => {
+    const dbPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'fie-')), 'fie.sqlite');
+    const server = createHttpServer(openDatabase(dbPath), testConfig(dbPath), silentLogger);
+
+    const preflight = await server.inject({
+      method: 'OPTIONS',
+      url: '/v1/events/ingest',
+      headers: { origin: 'http://localhost:5173' },
+    });
+    expect(preflight.statusCode).toBe(204);
+    expect(preflight.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+
+    // file:// 打开的本地页面 Origin 为 "null"，也应放行
+    const fileOrigin = await server.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'null' },
+    });
+    expect(fileOrigin.headers['access-control-allow-origin']).toBe('null');
+  });
+
+  it('对非本机来源不返回 CORS 放行头', async () => {
+    const dbPath = path.join(mkdtempSync(path.join(os.tmpdir(), 'fie-')), 'fie.sqlite');
+    const server = createHttpServer(openDatabase(dbPath), testConfig(dbPath), silentLogger);
+    const response = await server.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'https://evil.example.com' },
+    });
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });
