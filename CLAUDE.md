@@ -16,6 +16,7 @@ npm run start        # 运行编译产物 dist/index.js
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit 类型检查
 npm run cli -- <cmd> # tsx 运行 CLI（如 npm run cli -- ingest samples/codex-event.json）
+npm run calibrate -- <corpus.json>  # 阈值校准：对阈值网格重放语料，输出分数/决策分布
 ```
 
 运行单个测试文件或用例：
@@ -30,7 +31,7 @@ npx vitest tests/ingestion.test.ts  # watch 模式
 
 ## 架构：单向摄取流水线
 
-> 本节描述当前实现。Focus 生命周期、文件维度匹配、双阈值、纠正闭环等设计见 `docs/product-design.md`。**续做时先读 `docs/progress-notes.md`**：记录增量重构 5 步进度（1-4 已完成，第 5 步 D3 待开始）与恢复指引。设计缺口方案见 `docs/design-review-notes.md`，实现层待办见 `docs/code-review-notes.md`。
+> 本节描述当前实现。**续做时先读 `docs/progress-notes.md`**：记录增量重构进度与恢复指引。截至 2026-07-09：P0（D1 生命周期/D2 文件匹配/D3 纠正闭环）与 P1/P2（D5 per-source 隐私、D6 时间序、D7 文档对齐 pull-only、D8 宣称标注）均已落地；D4 Focus 层级经需求验证暂不建（见 `design-review-notes.md §5c`）；实现层 code-review #1-#12 全部闭合。设计缺口方案见 `docs/design-review-notes.md`，实现层记录见 `docs/code-review-notes.md`。
 
 核心是一条严格单向的处理链路，由 `src/ingestion/ingest-event.ts` 中的 `ingestEvent()` 编排，每个阶段职责单一、不得越界：
 
@@ -43,14 +44,15 @@ HTTP/CLI 入口 → redaction 脱敏 → 写入 attention_events（幂等）→ 
 
 - `src/server/http.ts`：Fastify 路由与请求校验。`POST /v1/events/ingest`、`POST /v1/events/batch`、`GET /v1/runs`、`GET /v1/runs/:id`、`GET /v1/focuses`、`GET /v1/trend`、`GET /health`。只做 HTTP 边界，不做业务决策。
 - `src/ingestion/`：`schema.ts`（Zod 事件 schema）+ `ingest-event.ts`（流水线编排 + 幂等）。**只负责摄取和幂等，不做业务归因**。
-- `src/redaction/redact.ts`：脱敏层。所有进入提取/匹配/日志/导出的内容必须先经过此层。按 `privacyMode`（`metadata` / `summary` / `local_raw`）决定保留多少内容，并用正则移除 token、邮箱、Bearer、`/Users/*` 路径。
+- `src/redaction/redact.ts`：脱敏层。所有进入提取/匹配/日志/导出的内容必须先经过此层。按生效 `privacyMode`（`metadata` / `summary` / `local_raw`，由 `resolvePrivacyMode` 解析 per-source 覆盖后确定）决定保留多少内容；`metadata` 模式按键白名单最小化；正则移除 token、私钥、GitHub/Slack/AWS 凭据、邮箱、Bearer、`/Users/` 与 `/home/` 家目录路径、IP、手机号等。
 - `src/extraction/rule-extractor.ts`：基于规则判定 trivial vs substantive，提取 topic/progress/blocker/nextAction。命中 `SUBSTANTIVE_KEYWORDS`、有文件变更、或事件类型含 `finished`/`commit` 视为实质。
-- `src/matching/focus-matcher.ts`：为候选 Focus 打分（项目名 +50，Focus 名命中 +30，每个关键词命中 +10，7 天内活跃 +5），返回前 5 名。
-- `src/decision/decision-engine.ts`：输出 `skip` / `check_in` / `create_and_check_in`。分数阈值 `MATCH_THRESHOLD = 50`。
-- `src/outputs/json-export.ts`：JSONL 导出。**输出适配器不得包含业务规则**，只写已确定的数据。
-- `src/db/`：`index.ts`（打开 SQLite、开启 WAL、执行迁移）+ `repository.ts`（全部 SQL）+ `schema.sql`（表结构）。
-- `src/cli/index.ts`：Commander CLI（`ingest` / `runs tail` / `runs show` / `focus` / `export jsonl`）。**不得绕过核心服务直接写库**。
-- `src/shared/`：`types.ts`、`id.ts`、`logger.ts`（JSON Lines 日志）。
+- `src/matching/focus-matcher.ts`：为候选 Focus 打分（项目名 +50；Focus 名命中 +30，通用词/等于 project/type 时不加；每关键词 +10；文件路径完整重合 +25/命中上限 +50、同目录 +8、同文件名 +4；活跃度 ≤7d +5 / ≤30d +2，参考时间用事件 `occurredAt`），返回前 5 名。仅 `active`/`dormant` 参与匹配。
+- `src/decision/decision-engine.ts`：双阈值输出 `skip` / `check_in` / `create_and_check_in`。分数 `>= tMatch` 高置信 check_in；`[tCreate, tMatch)` 归入最高候选并标 `lowConfidence`；`< tCreate` 才新建。阈值来自 `config.tMatch`/`tCreate`。
+- `src/outputs/json-export.ts`：JSONL 导出（pull-only）。**输出适配器不得包含业务规则**，只写已确定的数据。
+- `src/db/`：`index.ts`（打开 SQLite、开启 WAL、执行迁移）+ `repository.ts`（全部 SQL）+ `migrations.ts`（幂等增量迁移）+ `schema.sql`（基础表结构）。
+- `src/cli/index.ts`：Commander CLI（`ingest` / `runs tail|show` / `focus list|merge|archive|sweep` / `checkin reassign|confirm|drop` / `stats` / `trend` / `export jsonl`）。**不得绕过核心服务直接写库**。
+- `src/shared/`：`types.ts`、`id.ts`、`paths.ts`（路径规范化）、`logger.ts`（流式 JSON Lines 日志，支持优雅关闭）。
+- `scripts/calibrate.ts`：阈值校准工具（非用户 CLI），用真实流水线对阈值网格重放语料。
 
 ## 关键约束（不可绕过）
 
@@ -64,7 +66,15 @@ HTTP/CLI 入口 → redaction 脱敏 → 写入 attention_events（幂等）→ 
 
 ## 数据模型
 
-SQLite 表（`src/db/schema.sql`，snake_case 命名）：`attention_events`、`ingestion_runs`、`focuses`、`focus_checkins`。启动时 `applyMigrations` 先执行整份 `schema.sql`（全部 `CREATE TABLE IF NOT EXISTS` 建基础表），再跑 `src/db/migrations.ts` 的幂等增量迁移通道（`schema_migrations` 记录 + `columnExists`/`addColumn` 守卫）。**新增列/表一律追加到 `migrations` 列表，禁止裸 `ALTER TABLE ADD COLUMN`。**
+SQLite 表（基础表见 `src/db/schema.sql`，snake_case 命名）：
+
+- `attention_events`：外部事件（`source` + `source_event_id` UNIQUE、`occurred_at`、`type`、脱敏摘要、metadata）。
+- `ingestion_runs`：每次处理的 `status`（processing/duplicate/accepted/failed）、`decision`、`reason`、`candidates_json`、`error`（pull-only，无重试字段）。
+- `focuses`：稳定关注对象。基础列 + 迁移追加 `status`（active/dormant/archived/merged）、`merged_into`、`last_decayed_at`、`paths_json`。
+- `focus_checkins`：一次归因的摘要/阻塞/下一步/来源。基础列 + 迁移追加 `paths_json`、`low_confidence`、`corrected`、`dropped`。
+- `focus_events`：纠正与生命周期操作审计（`kind` = reassign/merge/archive/delete_checkin/confirm，from/to focus、checkin_id、actor、reason）。
+
+启动时 `applyMigrations` 先执行整份 `schema.sql`（全部 `CREATE TABLE IF NOT EXISTS` 建基础表），再跑 `src/db/migrations.ts` 的幂等增量迁移通道（`schema_migrations` 记录 + `columnExists`/`addColumn` 守卫，当前含 `0001_focus_paths` → `0005_checkin_corrected`）。**新增列/表一律追加到 `migrations` 列表，禁止裸 `ALTER TABLE ADD COLUMN`。**
 
 ## 约定
 
@@ -83,5 +93,7 @@ SQLite 表（`src/db/schema.sql`，snake_case 命名）：`attention_events`、`
 - `docs/project-constraints.md`：项目铁律与模块边界（最高优先级）。
 - `docs/development-guide.md`：技术栈、流程、接口、数据模型、测试重点。
 - `docs/product-design.md`：正式设计基准（目标用户、Focus 生命周期、归因、纠正闭环、隐私模型等，含 D1–D8）。
+- `docs/design-review-notes.md`：设计缺口 D1–D8 方案、D4 需求验证（§5c）与阈值校准方法（§7a）。
+- `docs/progress-notes.md`：增量重构进度与恢复指引（续做时先读）。
 - `docs/adapters.md` / `docs/protocol.md`：Adapter 接入与事件协议。
 - `AGENTS.md`：仓库贡献规范。
