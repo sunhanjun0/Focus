@@ -225,6 +225,14 @@ fie trend --days 30
 
 这些命令用于本地验证 hook、查看决策链路、纠正归因、维护 Focus 生命周期，`fie stats` 输出修正率与低置信占比等质量指标，`fie trend` 按事件 `occurredAt` 聚合每日活跃度（check-in 与 Focus 数，D6 时间序）。
 
+阈值校准（回填 open question #3）用独立脚本，不进用户 CLI：
+
+```bash
+npm run calibrate -- samples/calibration-corpus.json [--tmatch 40,50,60] [--tcreate 20,25,30]
+```
+
+它用真实摄取流水线对每组 `T_match`/`T_create` 把整份语料重放进临时库，输出分数分布与各档决策分布，辅助在有真实事件数据时选定阈值默认值（方法与样本发现见 `docs/design-review-notes.md §7a`）。
+
 ## 12. 安全与隐私要求
 
 隐私保护是核心功能。默认只保存脱敏摘要，原文保留必须显式开启。任何外部输出，包括 HTTP 回调、JSON export 和第三方工具适配器，都必须经过同一套 redaction 层。配置文件、数据库和日志目录应加入 `.gitignore`。

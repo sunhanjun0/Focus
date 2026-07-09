@@ -1,0 +1,73 @@
+{
+  "events": [
+    {
+      "source": "codex",
+      "sourceEventId": "calib-001",
+      "occurredAt": "2026-07-01T09:00:00+08:00",
+      "type": "conversation.finished",
+      "project": "Focus Ingestion Engine",
+      "summary": "实现事件摄取 API 与幂等写入，完成基础 HTTP 路由。",
+      "metadata": { "files": ["src/server/http.ts", "src/ingestion/ingest-event.ts"] }
+    },
+    {
+      "source": "git-hook",
+      "sourceEventId": "calib-002",
+      "occurredAt": "2026-07-01T11:30:00+08:00",
+      "type": "git.commit.created",
+      "project": "Focus Ingestion Engine",
+      "summary": "提交摄取接口改动，补充批量处理逻辑。",
+      "metadata": { "files": ["src/server/http.ts", "tests/http.test.ts"] }
+    },
+    {
+      "source": "ci",
+      "sourceEventId": "calib-003",
+      "occurredAt": "2026-07-01T12:00:00+08:00",
+      "type": "automation.completed",
+      "summary": "CI 完成构建与测试。",
+      "metadata": { "files": ["src/server/http.ts"] }
+    },
+    {
+      "source": "codex",
+      "sourceEventId": "calib-004",
+      "occurredAt": "2026-07-02T10:00:00+08:00",
+      "type": "conversation.finished",
+      "project": "Website Redesign",
+      "summary": "重构着陆页布局，调整响应式断点。",
+      "metadata": { "files": ["web/src/pages/landing.tsx", "web/src/styles/layout.css"] }
+    },
+    {
+      "source": "git-hook",
+      "sourceEventId": "calib-005",
+      "occurredAt": "2026-07-02T14:00:00+08:00",
+      "type": "git.commit.created",
+      "project": "Website Redesign",
+      "summary": "提交着陆页组件与样式更新。",
+      "metadata": { "files": ["web/src/pages/landing.tsx"] }
+    },
+    {
+      "source": "codex",
+      "sourceEventId": "calib-006",
+      "occurredAt": "2026-07-03T09:30:00+08:00",
+      "type": "conversation.finished",
+      "project": "Focus Ingestion Engine",
+      "summary": "补充决策引擎双阈值逻辑，接入低置信复核。",
+      "metadata": { "files": ["src/decision/decision-engine.ts", "tests/decision.test.ts"] }
+    },
+    {
+      "source": "agent",
+      "sourceEventId": "calib-007",
+      "occurredAt": "2026-07-03T15:00:00+08:00",
+      "type": "task.updated",
+      "summary": "调研向量检索方案，评估是否引入 embedding。",
+      "metadata": { "files": ["docs/research/vector-search.md"] }
+    },
+    {
+      "source": "ci",
+      "sourceEventId": "calib-008",
+      "occurredAt": "2026-07-03T18:00:00+08:00",
+      "type": "automation.completed",
+      "summary": "夜间构建通过，无回归。",
+      "metadata": { "files": ["src/decision/decision-engine.ts"] }
+    }
+  ]
+}

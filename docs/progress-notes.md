@@ -104,3 +104,7 @@ D1/D2/D3 三条 P0 已全部闭合。下一步可回看 `design-review-notes.md`
 当前测试 **59 passed**（14 文件）。
 
 已推送：D3/D5/D6/D7/D8 及各实现层修复的全部提交已推送至 origin/main（截至 `2c4357c`，2026-07-08），本地与远端同步。剩余 D4（Focus 层级）按优先级暂不做。
+
+## 9. 阈值校准机制（open question #3）
+
+新增 `scripts/calibrate.ts`（`npm run calibrate`），用真实流水线对阈值网格重放语料，输出分数分布与决策分布，把 T_match/T_create 定值从拍脑袋变成数据决策。样本 `samples/calibration-corpus.json` 显示分数呈双峰、40~59 为空档，验证默认 50/25 稳健；真实语料就绪后复跑定稿。方法与发现见 `design-review-notes.md §7a`。默认值本轮不改（无真实数据）。

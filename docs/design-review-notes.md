@@ -217,3 +217,16 @@ reassign 时同步维护目标 Focus 的 `paths_json` / `last_activity_at`（复
 - dormant/archive 的天数阈值默认值。
 - reassign 是否允许跨 project；merge 是否允许把 active 合进 dormant。
 - 这些取值直接对应 open question #3，建议用真实事件样本跑一轮校准后定稿。
+
+### 7a. 阈值校准机制（2026-07-08 落地）
+
+为把 open question #3 从"拍脑袋"变成"可复现的数据决策"，新增校准工具 `scripts/calibrate.ts`（`npm run calibrate -- <corpus.json> [--tmatch a,b] [--tcreate a,b]`）。它用**真实摄取流水线**对每组候选阈值把整份语料重放进独立临时库，输出：
+
+1. 实质事件最佳候选分数分布（直方图）。
+2. 阈值网格下各档决策分布（skip / checkIn 高 / checkIn 低 / create）与最终 Focus 数（收敛度）。
+
+**打分模型的天然分数带**（来自 `focus-matcher.ts`）：项目名 +50、Focus 名命中 +30、每关键词 +10、完整路径重合 +25/命中（上限 +50）、同目录 +8、同文件名 +4、活跃度 +5/+2。由此单一强信号（项目名匹配或两条完整路径重合）即可达 50；单条路径重合（25）或 2~3 个关键词落在中间带。
+
+**样本语料发现**（`samples/calibration-corpus.json`，8 事件）：最佳候选分数呈明显双峰——0（首次出现，走 create）、30~39（单一中等信号，低置信带）、60~99（项目名+路径的强信号）。40~59 是空档，因此 `T_match` 落在 [40,60)、`T_create` 落在 [20,35] 时决策分布稳定不变，验证**当前默认 50/25 稳健**。跨簇网格（如 `--tmatch 30,70 --tcreate 5,35`）则清晰暴露权衡：低 `T_create` 激进收敛（Focus 少但低置信多）、高 `T_match`+高 `T_create` 碎片化（Focus 数上升）。
+
+**结论**：在拿到真实用户语料前，默认 50/25 不改；接入方积累真实事件后运行 `npm run calibrate` 复核，再据分数分布定稿。dormant 天数同理需真实使用时长数据，暂维持 30。
